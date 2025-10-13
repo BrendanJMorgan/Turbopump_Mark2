@@ -1,0 +1,6 @@
+h_min_ox,10.7561874817275
+r_tip_ox,14.3281769724089
+r_hub_base_ox,6.35
+r_hub_top_ox,5.11254157792709
+blade_lead_ox,41.2855939976763
+clearance_ox,10.3213984994191

@@ -1,0 +1,11 @@
+Base Radius (mm),66.825
+Pitchline Radius (mm),70
+Tip Radius (mm),73.175
+Blade Width (mm),12.7
+Blade Depth (mm),6.35
+Blade Angle (deg),10.5977551999978
+Blade Opening (mm),1.84935396104161
+Blade Number,44
+Nozzle Angle (deg),20.516287591634
+Nozzle Diameter (mm),3.2258
+Nozzle Number,15.2794034431281

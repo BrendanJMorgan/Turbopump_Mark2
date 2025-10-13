@@ -1,0 +1,18 @@
+# encoding: utf-8
+# 2025 R1
+SetScriptVersion(Version="25.1.122")
+template1 = GetTemplate(TemplateName="Fluid Flow")
+system1 = template1.CreateSystem()
+geometry1 = system1.GetContainer(ComponentName="Geometry")
+geometry1.SetFile(FilePath="C:/Users/brend/Desktop/Turbopump Mark 2/Ansys Models/[TP] [Pump] [Ox] Impeller.STEP")
+meshComponent1 = system1.GetComponent(Name="Mesh")
+meshComponent1.Refresh()
+mesh1 = system1.GetContainer(ComponentName="Mesh")
+mesh1.Edit()
+mesh1.Exit()
+geometryComponent1 = system1.GetComponent(Name="Geometry")
+geometryComponent1.Reset()
+geometry1.SetFile(FilePath="C:/Users/brend/Desktop/Turbopump Mark 2/Ansys Models/[TP] [Pump] [Ox] Impeller.STEP")
+meshComponent1.Refresh()
+mesh1.Edit()
+Save(Overwrite=True)
