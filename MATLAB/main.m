@@ -37,7 +37,7 @@ orifice_number_fuel = 12;   % 4 for impinging, 8 for showerhead film cooling on 
 clocking = [1,-1];                      % 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
 pump_shaft_speed = 30000*pi/30*[1,1];   % rad/s - angular velocity of the pump shaft, impeller, and inducers
 gear_efficiency = 1;                    % unitless - spur gears ~= 0.95; common shaft = 1
-r_eye_inner = [0.006,0.006];	        % m
+r_hub = [0.006,0.006];	        % m
 r_shaft = 0.005;                        % m - portion of shaft that is stainless steel
 impeller_thickness = [0.003,0.003];     % m - thickness of impeller at the exit point, not including blades
 eye_flow_coeff = [0.25,0.25];           % unitless - higher means smaller impeller but larger inducer

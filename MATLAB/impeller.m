@@ -1,44 +1,32 @@
 %% Impeller Contours - pg 2.29-2.32 in pump handbook
 
-%% The eye
-% Eye radius initial guessing
-lower_bound = 1.001*r_eye_inner(p); % m - eye radius must be larger than its inner radius to have physical meaning
-upper_bound = 10*r_eye_inner(p); % m - if eye radius is somehow above this you have bigger problems
-r_guess = (lower_bound + upper_bound) / 2;
+r_eye_margin(p) = 1.15 + 0.2116*(specific_speed(p)-0.2836); % unitless - margin correction factor, Gulich 7.1.4; for a normal impeller (not a suction impeller)
+swirl_number(p) = 1; % NEEDS TO BE A FUNCTION OF INDUCER OUTLET CONDITIONS (ITERATIVE)
+% r_inlet_impeller = 0.5 * r_eye_margin * sqrt(r_hub + 1.48E-3 * outlet_flow_coeff(p)/2* (52.9*specific_speed(p))^1.33 / swirl_number^0.67 );
+r_inlet_impeller(p) = r_eye_margin(p) * sqrt(r_hub(p)^2 + 0.0026418 * outlet_flow_coeff(p)* specific_speed(p)^1.33 / swirl_number(p)^0.67 );
 
-% Using fzero with bounded search
-options = optimset('TolX',1e-12,'TolFun',1e-12);
-[r_eye_impeller(p), precision, exitflag] = fzero(@(r) eye_solver(r, ...
-    vdot_pump(p), abs(pump_shaft_speed(p)), eye_flow_coeff(p), r_eye_inner(p)), [lower_bound, upper_bound], options);
-
-if exitflag == 0
-    error('Pump eye radius solver failed');
-end
-
-A_eye(p) = pi*(r_eye_impeller(p)^2 - r_eye_inner(p)^2); % m2 - inlet area of the impeller eye
-eye_flow_coeff(p) = vdot_pump(p)/A_eye(p) / (abs(pump_shaft_speed(p))*r_eye_impeller(p)); % unitless - in case solver didn't exactly match input
-
-%% The exit radius r2 (or diameter D2)
-r_outlet_impeller(p) = 1 / abs(pump_shaft_speed(p)) * sqrt (g*head_pump(p) / head_coeff(p));
+r_outlet_impeller(p) = 1 / abs(pump_shaft_speed(p)) * sqrt (g*head_pump(p) / head_coeff(p)); % m - impeller exit radius, Gulich eqn 7.1.3
 
 %% The exit width b2
-w_exit(p) = vdot_pump(p) / (2*pi*pump_shaft_speed(p)*r_outlet_impeller(p)^2*outlet_flow_coeff(p)*blockage(p));
-% this needs boundary layer and leakage effect - pg 2.60 
-% could parameterize a width at each station with a blockage vector, linear
-% ramp of area
+% w_exit(p) = vdot_pump(p) / (2*pi*pump_shaft_speed(p)*r_outlet_impeller(p)^2*outlet_flow_coeff(p)*blockage(p));
+w_exit(p) = 2*r_outlet_impeller(p) * (0.017 + 0.1386*specific_speed(p) - 0.022387*specific_speed(p)^2 + 0.0013767*specific_speed(p)^3); % m - outlet width; empirical; Gulich eqn 7.1
+
+% this needs boundary layer and leakage effect - pg 2.60?
+% could parameterize a width at each station with a blockage vector, linear ramp of area?
 
 %% Hub and shroud profiles
 
-r_min(p) = 0.5*r_eye_impeller(p); % m - minimum allowable radius of curvature
+r_min(p) = 0.5*r_inlet_impeller(p); % m - minimum allowable radius of curvature
 bezier_params_initial = [0.01, 0.01, 0.01]; % starting values
-cost_function = @(bezier_params) cost_function_impeller(bezier_params, r_eye_impeller(p), r_outlet_impeller(p), w_exit(p), impeller_thickness(p), r_eye_inner(p), r_min(p));
+cost_function = @(bezier_params) cost_function_impeller(bezier_params, r_inlet_impeller(p), r_outlet_impeller(p), w_exit(p), impeller_thickness(p), r_hub(p), r_min(p));
 bezier_params_optimal(:,p) = fminsearch(cost_function, bezier_params_initial);
 
 bezier_vert_optimal(p) = bezier_params_optimal(1,p);
 bezier_horiz_optimal(p) = bezier_params_optimal(2,p);
 impeller_height_optimal(p) = bezier_params_optimal(3,p);
 
-[~, ~, min_shroud_curvature(:,p), ~, shroud_curve(:,:,p), impeller_curve(:,:,p), control_points(:,:,p)] = compute_curves(bezier_vert_optimal(p), bezier_horiz_optimal(p), r_eye_impeller(p), r_outlet_impeller(p), w_exit(p), impeller_thickness(p), impeller_height_optimal(p), r_eye_inner(p));
+[~, ~, min_shroud_curvature(:,p), ~, shroud_curve(:,:,p), impeller_curve(:,:,p), control_points(:,:,p)] = ... 
+    compute_curves(bezier_vert_optimal(p), bezier_horiz_optimal(p), r_inlet_impeller(p), r_outlet_impeller(p), w_exit(p), impeller_thickness(p), impeller_height_optimal(p), r_hub(p));
 
 min_radius(p) = 1/max(min_shroud_curvature(:,p));
 if min_radius(p) < 0.99*r_min(p)    
@@ -46,19 +34,16 @@ if min_radius(p) < 0.99*r_min(p)
 end
 
 %% Functions
-function f = eye_solver(r_eye_impeller, vdot_pump, pump_shaft_speed, eye_flow_coeff, r_eye_inner)
-    f = r_eye_impeller - (vdot_pump / (pi*pump_shaft_speed*eye_flow_coeff*(1-r_eye_inner^2/r_eye_impeller^2)) ) ^ (1/3);
-end
 
 % Function to compute slopes and minimum curvature for shroud and impeller curves in a pump
-function [slope_shroud, slope_impeller, min_shroud_curvature, flatness_impeller, shroud_curve, impeller_curve, control_points] = compute_curves(bezier_vert, bezier_horiz, r_eye_impeller, r_exit_impeller, w_exit, impeller_thickness, impeller_height, r_eye_inner)
+function [slope_shroud, slope_impeller, min_shroud_curvature, flatness_impeller, shroud_curve, impeller_curve, control_points] = compute_curves(bezier_vert, bezier_horiz, r_inlet_impeller, r_exit_impeller, w_exit, impeller_thickness, impeller_height, r_hub)
 
     % Generate the shroud curve using bezier control points
-    control_points = [r_eye_impeller, impeller_height; r_eye_impeller, impeller_height - bezier_vert; r_exit_impeller - bezier_horiz, impeller_thickness + w_exit; r_exit_impeller, impeller_thickness + w_exit];
+    control_points = [r_inlet_impeller, impeller_height; r_inlet_impeller, impeller_height - bezier_vert; r_exit_impeller - bezier_horiz, impeller_thickness + w_exit; r_exit_impeller, impeller_thickness + w_exit];
     shroud_curve = bezier(control_points, 1000); % [m,m]
 
     % Compute the flow areas at eye and exit
-    A_pump_eye = pi * (r_eye_impeller^2 - r_eye_inner^2); % m2
+    A_pump_eye = pi * (r_inlet_impeller^2 - r_hub^2); % m2
     A_pump_exit = 2 * pi * r_exit_impeller * w_exit; % m2
 
     % Generate area array from eye to exit along the shroud curve
@@ -87,11 +72,11 @@ function [slope_shroud, slope_impeller, min_shroud_curvature, flatness_impeller,
     min_shroud_curvature = abs(gradient(shroud_curve(:, 1), s) .* gradient(gradient(shroud_curve(:, 2), s), s) - gradient(shroud_curve(:, 2), s) .* gradient(gradient(shroud_curve(:, 1), s), s)) ./ (gradient(shroud_curve(:, 1), s).^2 + gradient(shroud_curve(:, 2), s).^2).^(3/2);
 end
 
-function cost = cost_function_impeller(bezier_params, r_eye_impeller, r_exit_impeller, w_exit, impeller_thickness, r_eye_inner, r_min)
+function cost = cost_function_impeller(bezier_params, r_inlet_impeller, r_exit_impeller, w_exit, impeller_thickness, r_hub, r_min)
     bezier_vert = bezier_params(1);
     bezier_horiz = bezier_params(2);
     impeller_height = bezier_params(3);
-    [slope_shroud, slope_impeller, min_shroud_curvature, flatness_impeller] = compute_curves(bezier_vert, bezier_horiz, r_eye_impeller, r_exit_impeller, w_exit, impeller_thickness, impeller_height, r_eye_inner);
+    [slope_shroud, slope_impeller, min_shroud_curvature, flatness_impeller] = compute_curves(bezier_vert, bezier_horiz, r_inlet_impeller, r_exit_impeller, w_exit, impeller_thickness, impeller_height, r_hub);
     
     if flatness_impeller > 0
         flatness_impeller = 0;

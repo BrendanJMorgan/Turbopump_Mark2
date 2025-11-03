@@ -1,7 +1,7 @@
 %% Impeller Blades
 
 %% Meanline Definition
-r_inlet_blade(p) = r_eye_impeller(p); % m - radial location of blade inlets - typically vertically aligned with eye radius - this assumption can be changed
+r_inlet_blade(p) = r_inlet_impeller(p); % m - radial location of blade inlets - typically vertically aligned with eye radius - this assumption can be changed
 meanline_curve_untrimmed(:,:,p) = 0.5 * (shroud_curve(:,:,p) + impeller_curve(:,:,p)); % [m,m] - halfway between shroud and impeller
 inlet_index(p) = find(meanline_curve_untrimmed(:,1,p) > r_inlet_blade, 1); % unitless - point at which meanline curve lies directly beneath eye radius
 
@@ -13,13 +13,14 @@ meanline_curve(:,:,p) = [r_meanline, z_meanline]; % [m,m] - blade meanline
 
 %% Velocity Triangles
 u_blade(:,p) = pump_shaft_speed(p)*meanline_curve(:,1,p); % m/s - blade tangential velocity
-v_merid(:,p) = vdot_pump(p)/(pi*(r_eye_impeller(p)^2-r_eye_inner(p)^2)).*ones(1000,1); % m/s - NEEDS TO VARY ALONG MEANLINE
+v_merid(:,p) = vdot_pump(p)/(pi*(r_inlet_impeller(p)^2-r_hub(p)^2)).*ones(1000,1); % m/s - NEEDS TO VARY ALONG MEANLINE
 % v_merid(:,p) = vdot_pump(p) ./ (2*pi*meanline_curve(:,1,p).*vecnorm(shroud_curve(:,:,p)-impeller_curve(:,:,p),2,2)); % m/s - meridional velocity
 
 hydraulic_efficiency(p) = 1 - 0.071 / vdot_pump(p)^0.25; % unitless - Jekat's Empirical Formula - valid for all specific speeds CONVERT TO ANDERSON?
 
 v_tangential_inlet(p) = 0; % m/s - assuming no pre-swirl from the inducer
-v_tangential_outlet(p) = g*head_pump(p) / (hydraulic_efficiency(p)*u_blade(end,p)) + v_tangential_inlet(p); % m/s - this is Euler's pump equation rearranged (V_theta,2 in pump handbook). The tangential flow speed to achieve head requirement.                                                                                                                                                                                                                                                                                                                                                                                                                           
+v_tangential_outlet(p) = g*head_pump(p) / (hydraulic_efficiency(p)*u_blade(end,p)) + v_tangential_inlet(p); 
+    % m/s - this is Euler's pump equation rearranged (V_theta,2 in pump handbook). The tangential flow speed to achieve head requirement.                                                                                                                                                                                                                                                                                                                                                                                                                           
 v_tangential(:,p) = linspace(v_tangential_inlet(p), v_tangential_outlet(p), length(meanline_curve(:,p)))'; % assuming linear ramp of fluid tangential velocity
 
 fluid_azimuth(:,p) = atan(v_merid(:,p) ./ (u_blade(:,p) - v_tangential(:,p))); % rad - angle between fluid flow azimuth and local tangential azimuth (beta_f2 in pump handbook)
@@ -37,7 +38,7 @@ blade_curve(:,:,p) = [meanline_curve(:,1,p).*[cos(theta_blade(:,p)),-clocking(p)
 blade_arc_length(p) = sum(sqrt(diff(blade_curve(:,1,p)).^2+diff(blade_curve(:,2,p)).^2+diff(blade_curve(:,3,p)).^2)); % m - arc length of one individual blade, measure at meanline line
 solidity_ideal(p) = interp1([0, 0.4, 3], [1.8, 1.8, 1], specific_speed(p)); % solidity is the optimal ratio of blade chord to blade spacing. Pump handbook page 2.36 (sigma)
 blade_count(p) = round(solidity_ideal(p) * 2*pi*r_outlet_impeller(p) / blade_arc_length(p)); % number of blades
-solidity(p) = blade_count(p)*blade_arc_length(p)/(2*pi*r_outlet_impeller(p));
+solidity(p) = blade_count(p)*blade_arc_length(p)/(2*pi*r_outlet_impeller(p)); % unitless
 
 %% Compute Blockage (pump handbook page 2.63)
 blade_thickness(p) = 0.04*r_outlet_impeller(p); % m

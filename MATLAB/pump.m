@@ -6,14 +6,13 @@ vdot_pump(p) = mdot_pump(p)/density_pump(p); % m3/s - Volumetric Flow Rate
 %% Sizing the Pump
 
 specific_speed(p) = abs(pump_shaft_speed(p))*sqrt(vdot_pump(p))/(head_pump(p)*g)^0.75;
+specific_speed_imperial(p) = specific_speed(p)*2729.64; % pseudo unitless - Ns
 outlet_flow_coeff(p) = 0.1715*sqrt(specific_speed(p)); % phi_i in pump handbook
-if specific_speed < 0.59
-    head_coeff(p) = 0.383 / specific_speed(p)^(1/3); % unitless - ratio of pressure rise to tip speed squared - psi in pump handbook
-elseif specific_speed(p) < 1
-    head_coeff(p) = 0.4 / specific_speed(p)^0.25;
-else
-    head_coeff(p) = 0.4 / specific_speed(p)^0.5;
-end
+
+ft = 1.0; % could increase up to 1.1 to be more aggressive on head, on low head pumps
+head_coeff(p) = 0.605*ft*exp(-0.408*specific_speed(p)); % unitless - psi_opt; eqn 3.26 in Gulich
+shutoff_coeff(p) = 1.25; % 1.25 for volute designs and 1.31 for diffuser designs
+shutoff_head_coeff(p) = 0.625*exp(-0.159*specific_speed(p)); % unitless - psi_0; in the limit Q=0
 
 blockage(p) = 0.85; % unitless - iterative initial guess - 1 is completely open, pump handbook says 0.85 is typical?
 old_blockage = 0; % placeholder

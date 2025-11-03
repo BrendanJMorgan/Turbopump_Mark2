@@ -26,7 +26,6 @@ mdot_ox_cc = mdot_cc*(OF/(1+OF)); % kg/s - Oxidizer Mass Flow Rate
 
 A_throat = mdot_cc*c_star/p_cc; % m2 - throat area
 A2_throat = thrust / p_cc; % m2 - throat area
-A3_throat = mdot_cc*c_star/p_cc; % m2 - throat area
 d_throat = sqrt(4*A_throat/pi); % m - throat diameter
 r_throat = d_throat/2; % m - throat radius
 A_exit = A_throat*Ae_At; % m2 - exit area
@@ -61,7 +60,7 @@ r1 = ones(1,length(x))*0.5*d1_chamber; % Chamber
     r1(floor(l_chamber/dx) : end) = 0.5 * ( d1_chamber - d_throat ) * ( x1_throat - x(floor(l_chamber/dx):end) ) / ( x1_throat - x(floor(l_chamber/dx)) ) + 0.5*d_throat;
 
     % Divergence
-    r1(floor(x3_throat/dx) : end) = 0.5 * ( d_exit-d_throat ) * ( x(floor(x3_throat/dx):end) - x3_throat ) / ( x(end) - x3_throat ) + 0.5*d_throat; %SUSSSSSSSSS
+    r1(floor(x3_throat/dx) : end) = 0.5 * ( d_exit-d_throat ) * ( x(floor(x3_throat/dx):end) - x3_throat ) / ( x(end) - x3_throat ) + 0.5*d_throat; % SUSSSSSSSSS
 
     % Throat Arc
     x_arc = -r_throat*sin(converge_angle):dx:r_throat*sin(diverge_angle);

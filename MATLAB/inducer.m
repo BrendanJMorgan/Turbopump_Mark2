@@ -2,8 +2,8 @@
 %% Net Positive Suction Head (NPSH) Requirements
 
 k1 = 1.2; 
-k2 = 0.2334 + (pump_shaft_speed(p)*r_eye_impeller(p)/128.3)^4;
-cavitation_limit(p) = (pump_shaft_speed(p)*r_eye_impeller(p))^2/(2*g); % unitless
+k2 = 0.2334 + (pump_shaft_speed(p)*r_inlet_impeller(p)/128.3)^4;
+cavitation_limit(p) = (pump_shaft_speed(p)*r_inlet_impeller(p))^2/(2*g); % unitless
 NPSH_SE(p) = ((k1+k2)*eye_flow_coeff(p)^2 + k2) * cavitation_limit(p); % m - NPSH, shockless entry. Pump handbook pg. 2.88
 NPSH_required(p) = NPSH_SE(p); % m - assuming operation at best efficiency point (BEP) and shockless
 
@@ -45,7 +45,7 @@ v_tip_inducer(p) = pump_shaft_speed(p)*r_tip_inducer(p); % m/s
 head_coeff_inducer(p) = NPSH_inducer(p)*g / v_tip_inducer(p)^2; % unitless - 0.15 is the cutoff between low and high head - camber needed if >0.075
 
 %% Hub Construction
-r_hub_base(p) = r_eye_inner(p); % m
+r_hub_base(p) = r_hub(p); % m
 r_hub_top(p) = 2*hub_tip_ratio_inducer(p)*r_tip_inducer(p) - r_hub_base(p); % m
 
 %% Clearance Losses - not relevant with a proper shroud
