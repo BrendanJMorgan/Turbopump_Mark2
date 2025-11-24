@@ -1,105 +1,115 @@
 import numpy as np
+from scipy.interpolate import CubicSpline
+from scipy.interpolate import RegularGridInterpolator
+from engine_state import engine, tca, gg, turbine
 
-def turbines(p) -> None:
 
-    # load(expansion_loss_data.mat)  # in your project: supply this externally or convert to arrays on `p`
-    blade_width_interp = np.array([0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0])  # in
-    incidence_loss_interp = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])  # TODO: populate with your curve
-    mach_loss_data = None  # TODO: your table
-    load('impulse_turbine_efficiency.mat')  # TODO: replace with your accessor
-    load('pitch_chord_real.mat')            # TODO: replace with your accessor
+def turbines(t: turbine):
 
-    p.turbine_shaft_speed = abs(p.pump_shaft_speed) * p.gear_ratio  # rad/s
+    blade_angle_interp = np.arange(0, 141, 1)                               # deg
+    blade_width_interp = np.array([0.6, 0.7, 0.8, 0.9, 1.0, 1.5, 2.0])      # in
+    incidence_loss_data = np.load('incidence_loss_data.npz')                # deg vs loss coeff
+    mach_loss_data = np.load('mach_loss_data.npz')                          # mach vs loss coeff
+    impulse_turbine_efficiency = np.load('impulse_turbine_efficiency.npz')  # v_ratio vs efficiency
+    pitch_chord_zweifel = np.load('pitch_chord_zweifel.npz')                # blade angle deg vs pitch/chord ratio 
+    expansion_loss_data = np.load('expansion_loss_data.npz')                # blade angle deg and blade width in vs loss coeff
 
-    # XX Nozzle Plate
-    mach_spouting = np.sqrt(2 / (p.gamma_BB - 1) * ((p.p_amb / p.p_BB)**((p.gamma_BB - 1) / p.gamma_BB) - 1))  # unitless
-    T_spouting = p.T_gB * (p.p_amb / p.p_BB)**((p.gamma_BB - 1) / p.gamma_BB)  # K - static temperature for perfectly expanded flow
-    M_BB = 0.068 * p.BB_output_oz1 * (33.91 / p.M0_k)  # molecular weight (fully combusted)   # TODO: confirm units/fit
-    R_BB = 8.3145 / (M_BB / 1000.0)  # J/(kg·K) - specific gas constant
-    v_spouting = np.sqrt(2 * p.gamma_BB / (p.gamma_BB - 1) * R_BB * p.T_gB * (1 - (p.p_amb / p.p_BB)**((p.gamma_BB - 1) / p.gamma_BB)))  # m/s
-    v_exit_nozzle = v_spouting * p.gamma_v_ratio  # m/s - speed on nozzle exit plane
+    t.turbine_shaft_speed = abs(t.pump_shaft_speed) * t.gear_ratio          # rad/s
 
-    A_throat_np = p.mdot_BB_gas / (p.rho_gB * v_exit_nozzle)  # kg/s ÷ (kg/m^3·m/s) → m^2 = cumulative throat area on the nozzle plate
-    r_pitchline_nozzle = p.r_pitchline_rotor  # m  # TODO: set from geometry if different
+    # Nozzle Plate
+    mach_spouting = np.sqrt(2 / (gg.gamma - 1) * ((engine.p_amb / gg.pc)**((gg.gamma - 1) / gg.gamma) - 1))  # unitless
+    T_spouting = gg.Tc * (engine.p_amb / gg.pc)**((gg.gamma - 1) / gg.gamma)  # K - static temperature for perfectly expanded flow
 
-    # XX Velocities
-    # one stage impulse rotor - does not work for multistaged and/or velocity driven turbines
-    v_pitchline_rotor = r_pitchline_nozzle * p.turbine_shaft_speed  # m/s - tangential rotor speed at pitchline
+    v_spouting = np.sqrt(2 * gg.gamma / (gg.gamma - 1) * gg.R * gg.Tc * (1 - (engine.p_amb / gg.pc)**((gg.gamma - 1) / gg.gamma)))  # m/s
 
-    v_ratio = 0.35  # unitless - “A single-row impulse stage delivers best performance at velocity ratios between 0.30 and 0.40”
-    v_axial_noz = v_spouting * v_ratio            # m/s
-    v_tang_noz = np.sqrt(v_spouting**2 - v_axial_noz**2)  # [tangential, axial]
-    v_rel_inlet = np.hypot(v_tang_noz - v_pitchline_rotor, v_axial_noz)  # m/s
-    blade_relative = np.arctan2(v_axial_noz, v_tang_noz - v_pitchline_rotor)  # rad - this is measured FROM THE VERTICAL
+    A_throat_np = gg.mdot * gg.c_star / gg.pc  # m2 - cumulative throat area on the nozzle plate
+    nozzle_number = A_throat_np / (np.pi/4*t.d_throat_nozzle^2) # unitless
 
-    pi_entrance_vector_angle = np.arctan2(v_axial_noz, v_tang_noz)  # rad
-    exit_vector_angle = -blade_relative                              # rad - assume symmetric blades until proven otherwise
+    ## Velocities
+    # One stage impulse rotor - does not work for multistage and/or velocity driven turbines
+    v_pitchline_rotor = t.r_pitchline_wheel*t.shaft_speed # m/s - tangential rotor speed at pitchline
 
-    blade_chord_angle = np.pi/2 - blade_relative  # rad - measure FROM THE HORIZONTAL
-    pitchline_nozzle_angle = np.pi/2 - pi_entrance_vector_angle  # rad - measure FROM THE HORIZONTAL
+    v_spouting_norm = gg.v_exhaust                                              # m/s
+    isentropic_v_ratio = v_pitchline_rotor/v_spouting_norm                      # unitless - "A single-row impulse stage delivers best performance at velocity ratios between 0.30 and 0.40"
+    v_axial_rotor = np.sqrt(v_spouting_norm^2 - 4*v_pitchline_rotor^2)          # m/s
+    v_spouting = np.array([2*v_pitchline_rotor, v_axial_rotor])                 # [m/s, m/s] - [tangential, axial]
+    angle_nozzle = np.atan(v_spouting(1)/v_spouting(2))                         # rad
+    v_blade_relative = np.array([v_pitchline_rotor, v_axial_rotor])             # m/s
+    incidence_angle_blade = np.atan(v_blade_relative(1)/v_blade_relative(2))    # rad - this is measured FROM THE VERTICAL
+    blade_angle_rotor = incidence_angle_blade                                   # rad
 
-    M_nozzle_exit = v_spouting / np.sqrt(p.gamma_BB * R_BB * T_spouting)  # unitless - mach at nozzle plate exit
-    v_spouting_R = np.hypot(v_tang_noz - v_pitchline_rotor, v_axial_noz)  # unitless - spouting in corotating frame of blades
+    blade_chord_angle = 90*np.pi/180                      # rad - assuming symmetrical blades until proven otherwise
+    exit_vector_angle = np.pi/2 - incidence_angle_blade   # rad - this is measured FROM THE HORIZONTAL
+    entrance_vector_angle = exit_vector_angle               # rad - assuming symmetrical blades, FROM THE HORIZONTAL
 
-    # XX Blade Spacing
-    A_min_throat = A_throat_np / p.BB  # m^2
-    A_blade_gap = A_min_throat / p.admission_fraction  # m^2 = minimum throughput area needed to prevent gas backup
-    # TODO: convert your exact Zweifel correlations here:
-    incidence_angle_blade = (blade_chord_angle * 180 / np.pi)  # deg
-    Zweifel = 0.85  # unitless (typical)
-    exit_vector_angle_deg = exit_vector_angle * 180 / np.pi
-    p_blade_pitch = pitch_chord(incidence_angle_blade, exit_vector_angle_deg, Zweifel)  # in; supply from your lookup
-    blade_pitch_rotor = p_blade_pitch / 39.37  # m
+    mag_v_spouting = np.sqrt(v_spouting[0]**2 + v_spouting[1]**2) # m/s
+    mag_v_blade_relative = np.sqrt(v_blade_relative[0]**2 + v_blade_relative[1]**2) # m/s
 
-    blade_chord_rotor = blade_pitch_rotor / np.cos(blade_chord_angle)  # ~ in an impulse rotor these are equal
-    blade_opening_rotor = blade_pitch_rotor * np.sin(blade_chord_angle)  # m - circumferential distance between neighboring blades
-    p.blade_count_rotor = int(np.round(2 * np.pi * r_pitchline_nozzle / blade_pitch_rotor))  # unitless - number of blades
+    M_spouting = mag_v_spouting*(gg.gamma*gg.R*gg.Tt - 0.5*(gg.gamma-1)*mag_v_spouting**2) ** -0.5 # unitless - mach at nozzle plate exit
+    M_spouting = M_spouting*v_spouting/mag_v_spouting # unitless
+    M_blade_relative = mag_v_blade_relative/mag_v_spouting*M_spouting # unitless - mach in corotating frame of blades
 
-    # XX Energies
+    # Blade Spacing
+    A_choked = gg.mdot*np.sqrt(gg.Tt)/gg.pc * np.sqrt(gg.R/gg.gamma) * ((gg.gamma+1)/2)^(0.5*(gg.gamma+1)/(gg.gamma-1)) # m2 - minimum throughput area needed to prevent gas backup
+    A_exit_wheel = A_throat_np * ( (2 + (gg.gamma - 1)*t.M_spouting**2 ) / (gg.gamma + 1) ) ** ((gg.gamma + 1)/(2*(gg.gamma - 1))) / t.M_spouting # m2 - cumulative area of all blade gaps in rotor
+
+    if exit_vector_angle < 30*np.pi/180:
+        print("Rotor blade angle of " + t.incidence_angle_blade*180/np.pi + " deg is too steep (Zweifel has no correlation)\n")
+    elif exit_vector_angle > 80*np.pi/180:
+        print("Rotor blade angle of " + t.incidence_angle_blade*180/np.pi + " deg is too shallow (Zweifel has no correlation)\n")
+    else:
+        pitch_chord_ratio = CubicSpline(pitch_chord_zweifel[:,0], pitch_chord_zweifel[:,1], -exit_vector_angle*180/np.pi, 'spline') # unitless - NASA Turbines 1974, figure 26, Zweifel impulse blades curve
+
+    zweifel_coeff = (0.90+1.15)/2 # unitless
+    t.blade_chord_wheel = t.blade_width_wheel/np.sin(t.blade_chord_angle)           # m - in an impulse rotor these are equal
+    t.blade_pitch_wheel = t.blade_chord_wheel * t.pitch_chord_ratio                 # m - the ideal circumferential distance between neighboring blades
+    t.blade_opening_wheel = t.blade_pitch_wheel * np.sin(t.incidence_angle_blade)   # m
+
+    t.blade_count_wheel =  4*round(2*np.pi*t.r_pitchline_wheel/t.blade_pitch_wheel/4) # unitless - number of blades along the circumference of the rotor
+
+    ## Energies
     # Adjust turbine gas-path expansion and kinetic energy, using the respective two-dimensional
     # loss coefficients for expansion energy, kinetic energy, Mach number, and incidence angle as
     # determined from plots like those in figures 16 through 18.
-    expansion_loss_coeff = expansion_loss_coeff_fn(v_ratio, blade_width_interp, incidence_angle_blade, exit_vector_angle_deg, blade_width_rotor=blade_pitch_rotor/0.0254)  # unitless - NASA turbines 1976; fig. 16
-    kinetic_loss_coeff = kinetic_loss_coeff_fn(M_nozzle_exit)  # unitless; eqn 3
-    incidence_loss_coeff = incidence_loss_coeff_fn(incidence_angle_blade)  # unitless - NASA turbines 1976; fig. 17
-    mach_loss_coeff = mach_loss_coeff_fn(M_nozzle_exit)  # unitless - NASA turbines 1976; fig. 18
 
-    nozzle_area = 2 * np.pi * admission_fraction(r_pitchline_nozzle) * pitchline_nozzle_angle  # TODO: your expression
-    turbine_efficiency_partial = ((1 - p.wheel_ratio) * (1 - blade_pitch_rotor / (p.nozzle_cu))) / ((1 - p.wheel_ratio) * p.turbine_efficiency_full * 1.53e-9 * p.gamma_v_ratio * p.dens_gas_spouted * p.turbine_shaft_speed * (1 - p.admission_fraction) / p.admission_fraction)  # unitless - equation 14  # TODO: verify
-    turbine_efficiency = turbine_efficiency_partial * clearance_loss_coeff(p.clearances_rotor)  # unitless
+    expansion_loss_coeff = RegularGridInterpolator(blade_angle_interp, blade_width_interp, expansion_loss_data, (np.pi-entrance_vector_angle-exit_vector_angle)*180/np.pi, t.blade_width_wheel/0.0254, method='cubic') # unitless - NASA Turbines 1976 fig. 16
+    kinetic_loss_coeff = 2*expansion_loss_coeff^2 - 1 # unitless, equation 3
+    incidence_loss_coeff = CubicSpline(incidence_loss_data[:,0], incidence_loss_data[:,1], t.incidence_angle_blade*180/np.pi) # unitless - NASA Turbines 1976 fig. 17
+    mach_loss_coeff = CubicSpline(mach_loss_data[:,0], mach_loss_data[:,1], np.sqrt(M_blade_relative[0]**2 + M_blade_relative[1]**2)) # unitless - NASA Turbines 1976 fig. 18
+    if np.sqrt(M_blade_relative[0]**2 + M_blade_relative[1]**2) <= 1:
+        mach_loss_coeff = 1 # assuming that mach loss does not apply to a subsonic case?
+    stage_efficiency = CubicSpline(impulse_turbine_efficiency[:,0], impulse_turbine_efficiency[:,1], isentropic_v_ratio, 'spline') # unitless
+    clearance_loss_coeff = -1.63*t.tip_clearance/t.blade_length_wheel+1
 
-    specific_work_expansion = v_spouting**2 / 2 / 9.80665  # J/kg → m (placeholder for eqn 1b); replace with your eqn set
-    kinetic_specific_work = v_rel_inlet**2 / 2 / 9.80665   # J/kg → m (placeholder for eqn 5b)
-    specific_work_rotor = expansion_specific_work(specific_work_expansion, expansion_loss_coeff) + kinetic_specific_work * kinetic_loss_coeff * mach_loss_coeff * incidence_loss_coeff  # J/kg
+    p_exit_turbine = engine.p_amb # Pa
+    T_exit_turbine = gg.Tt*(p_exit_turbine/gg.pc)^((gg.gamma-1)/gg.gamma) # K
+    expansion_specific_work = gg.R*T_exit_turbine*(gg.gamma/(gg.gamma-1))*(1-(p_exit_turbine/gg.pc)^((gg.gamma-1)/gg.gamma)) # J/kg - equation 1b, equation 2
+    kinetic_specific_work = 0.5*(v_spouting[0]^2+v_spouting[1]^2) # J/kg
+    specific_work_wheel = expansion_specific_work*expansion_loss_coeff + kinetic_specific_work*kinetic_loss_coeff*incidence_loss_coeff*mach_loss_coeff # J/kg - equation 5b
 
-    # mass flow through the GG / manifold / rotor
-    p.mdot_gas_rotor = p.power_turbine / (turbine_shaft_specific_work(v_spouting, v_pitchline_rotor) * turbine_efficiency)  # kg/s
+    turbine_efficiency_full = specific_work_wheel / (expansion_specific_work + kinetic_specific_work) # unitless
+    nozzle_arc = 2*np.pi*t.admission_fraction*t.r_pitchline_wheel # m
+    wheel_ratio = t.v_axial_wheel / np.sqrt(v_spouting[0]^2+v_spouting[1]^2) # unitless - ratio between outlet/inlet velocity of blades. Must be absolute, because the relative ratio would always be 1?
+    turbine_efficiency_partial = (1+wheel_ratio*(1-t.blade_pitch_wheel/(3*nozzle_arc)))/(1+wheel_ratio) * turbine_efficiency_full 
+    - 1.539E-9*isentropic_v_ratio*gg.dens_gas_spouted*t.shaft_speed*(1-t.admission_fraction)/t.admission_fraction # unitless - equation 14
 
-    # XX Blade Depth
-    if blade_length(blade_chord_rotor) < 1.5 * p.blade_count_rotor * blade_opening_rotor:
+    turbine_efficiency = turbine_efficiency_partial*clearance_loss_coeff
+
+    power_turbine = t.shaft_power/turbine_efficiency    # W - ideal power needed to meet pump requirements
+    mdot_gg = 0.5 * power_turbine / (t.shaft_speed*t.r_pitchline_wheel)^2 # kg/s - mass flow rate through the gg / manifold / rotor - this is actually equation 10b simplified with impulse rotor assumptions
+    torque_turbine = t.shaft_power / t.shaft_speed      # N*m
+
+    # Blade Depth
+    if t.blade_length_wheel < 1.5*A_choked/(t.blade_count_wheel*t.blade_opening_wheel):
         print("Rotor blades are too short and choking the flow")
 
-    p.r_tip_rotor = r_pitchline_nozzle + blade_length_nozzle(p) / 2  # m
-    p.r_base_rotor = r_pitchline_nozzle - blade_length_nozzle(p) / 2  # m
+    t.r_tip_wheel = t.r_pitchline_nozzle + t.blade_length_nozzle / 2    # m
+    t.r_base_wheel = t.r_pitchline_nozzle - t.blade_length_nozzle / 2   # m
 
     # XX Flow Adjustments
-    mdot_BB = p.mdot_BB  # kg/s
-    mdot_fuel_BB = mdot_BB * p.fBB  # kg/s - Fuel Mass Flow Rate
-    mdot_ox_BB = mdot_BB * (1 - p.fBB)  # kg/s - Oxidizer Mass Flow Rate
-    p.mdot_fuel_total = p.mdot_fuel_cc + mdot_fuel_BB  # kg/s
-    p.mdot_ox_total = p.mdot_ox_cc + mdot_ox_BB       # kg/s
-    p.mdot_total = p.mdot_ox_total + p.mdot_fuel_total  # kg/s
-
-    # XX Rotor Stress
-    p.sigma_hoop = 2 * (p.r_tip_rotor - p.r_base_rotor) / 0.0254**2 * (p.turbine_shaft_speed * 30 / np.pi)**2  # Pa  # TODO: confirm units
-    rotor_density = 7860.0  # kg/m^3 - 316 stainless  # https://bssa.org.uk/bssa_articles/elevated-temperature-physical-properties-of-stainless-steels/
-    allow_stress = 0.66 * 515e6  # Pa
-    rotor_strength = 0.95 * allow_stress  # Pa
-    q_tip_rotor = 0.25
-    p.pressure_rotor = 0.5 * rotor_density * (p.turbine_shaft_speed**2) * (q_tip_rotor**2)  # Pa
-    p.sigma_rotor = p.pressure_rotor / (rotor_strength / 6.89476e3)  # ksi
-
-    # XX Other
-    p.v_spouted_gg = v_spouting / 2  # m/s
-    p.spin_bottle_gg = 80.42 * (p.v_spouted_gg / 33.91)  # “this represents a cold keg of nitrogen in a K bottle. in reality flow will stop when pressure drops too low.”
-
+    engine.mdot = tca.mdot + gg.mdot               # kg/s
+    gg_fraction = gg.mdot / engine.mdot            # unitless
+    gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))           # kg/s - Fuel Mass Flow Rate
+    gg.mdot_ox = gg.mdot*(gg.OF/(1+gg.OF))         # kg/s - Oxidizer Mass Flow Rate
+    mdot_fuel_total = tca.mdot_fuel+gg.mdot_fuel   # kg/s
+    mdot_ox_total = tca.mdot_ox+gg.mdot_ox         # kg/s

@@ -12,7 +12,8 @@ r_outlet_impeller(p) = 1 / abs(pump_shaft_speed(p)) * sqrt (g*head_pump(p) / hea
 w_exit(p) = 2*r_outlet_impeller(p) * (0.017 + 0.1386*specific_speed(p) - 0.022387*specific_speed(p)^2 + 0.0013767*specific_speed(p)^3); % m - outlet width; empirical; Gulich eqn 7.1
 
 % this needs boundary layer and leakage effect - pg 2.60?
-% could parameterize a width at each station with a blockage vector, linear ramp of area?
+% could parameterize a width at each station with a blockage vector, linear
+% ramp of area?kk
 
 %% Hub and shroud profiles
 

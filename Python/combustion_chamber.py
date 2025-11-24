@@ -27,7 +27,7 @@ def combustion_chamber():
     c_tau_ideal = np.sqrt( (2*gamma_avg_nozzle**2/(gamma_avg_nozzle-1) * (2/(gamma_avg_nozzle+1))**((gamma_avg_nozzle+1)/(gamma_avg_nozzle-1)) * \
                     (1-(tca.p_exit/tca.pc)**((gamma_avg_nozzle-1)/gamma_avg_nozzle) ) ) ) + tca.Ae_At*(tca.p_exit-engine.p_amb)/tca.pc; # Ideal Thrust Coefficient
     tca.c_tau = c_tau_ideal*lambda_cone*tca.c_tau_eff                # Thrust Coefficient
-    tca.A_throat = engine.thrust / (tca.pc * tca.c_tau * tca.c_star_eff)   # m2 - Throat Area
+    tca.A_throat = engine.thrust / (tca.pc * tca.c_tau)  # m2 - Throat Area
 
     p_injector = tca.pc*cea_cc.get_Pinj_over_Pcomb(Pc=tca.pc/6894.76, MR=tca.OF, fac_CR=math.pi*tca.r1_chamber**2 / tca.A_throat) # Pa
     v_exhaust = tca.c_star * tca.c_tau  # m/s - Exhaust Velocity

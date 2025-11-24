@@ -20,25 +20,26 @@ def powerhead():
 
     # Liquid Oxygen Pump
     ox_pump = pump(fluid='ox')
-    ox_pump.p_out = tca.pc*(1+tca.stiffness) + 10*6894.76               # Pa - add 10 psi of margin for plumbing losses
-    ox_pump.p_in  = engine.p_amb # Pa
-    ox_pump.T_in  = PropsSI("T","P",ox_pump.p_in,"Q",0,"Oxygen")        # K - tank temperature
-    ox_pump.rho   = PropsSI("D","Q",0,"P",ox_pump.p_in,"Oxygen")        # kg/m3 - density of LOX at inlet
-    ox_pump.mdot  = engine.mdot_ox_total # kg/s
-    ox_pump.pv    = PropsSI("P","T",ox_pump.T_in,"Q",0,"Oxygen")        # Pa - vapor pressure of LOX at tank temperature
+    ox_pump.p_out = tca.pc*(1+tca.stiffness) + 10*6894.76                                           # Pa - add 10 psi of margin for plumbing losses
+    ox_pump.p_in  = engine.p_amb                                                                    # Pa   
+    ox_pump.T_in  = PropsSI("T","P",ox_pump.p_in,"Q",0,"Oxygen")                                    # K - tank temperature
+    ox_pump.density   = PropsSI("D","Q",0,"P",ox_pump.p_in,"Oxygen")                                # kg/m3 - density of LOX at inlet
+    ox_pump.mdot  = engine.mdot_ox_total                                                            # kg/s     
+    ox_pump.pvap_inlet = PropsSI("P","T",ox_pump.T_in,"Q",0,"Oxygen")                           # Pa - vapor pressure of LOX at tank temperature
   
-    pumps(pump=ox_pump) 
+    print(ox_pump.clocking)
+    pumps(ox_pump) 
 
     # Fuel Pump
     fuel_pump = pump(fluid='fuel')
-    fuel_pump.p_out = fuel_pump.p_cool_1 + 10*6894.76                             # Pa - add 10 psi of margin for plumbing losses
-    fuel_pump.p_in  = fuel_pump.p_amb                                             # Pa
-    fuel_pump.T_in  = fuel_pump.T_amb                                             # K - tank temperature    
-    fuel_pump.rho   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(engine.T_amb*1.8)    # kg/m3 - density of fuel at inlet
-    fuel_pump.mdot  = engine.mdot_fuel_total                                                # kg/s
-    fuel_pump.pv    = 0.001*rprop(engine.fuelrp).rp1_pvap_at_TdegR(fuel_pump.T_amb*1.8)     # Pa - vapor pressure of RP1 at tank temperature
+    fuel_pump.p_out = fuel_pump.p_cool_1 + 10*6894.76                                               # Pa - add 10 psi of margin for plumbing losses
+    fuel_pump.p_in  = fuel_pump.p_amb                                                               # Pa
+    fuel_pump.T_in  = fuel_pump.T_amb                                                               # K - tank temperature    
+    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(engine.T_amb*1.8)                  # kg/m3 - density of fuel at inlet
+    fuel_pump.mdot  = engine.mdot_fuel_total                                                        # kg/s
+    fuel_pump.pvap_inlet = 0.001*rprop(engine.fuelrp).rp1_pvap_at_TdegR(fuel_pump.T_amb*1.8)    # Pa - vapor pressure of RP1 at tank temperature
     
-    pumps(pump=fuel_pump)
+    pumps(fuel_pump)
 
     gas_generator()
 

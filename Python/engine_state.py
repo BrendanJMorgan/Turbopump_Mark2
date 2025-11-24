@@ -84,70 +84,45 @@ class gg: # Gas Generator
     c_tau_eff = 0.96                    # unitless - Thrust Coefficient Efficiency Factor
     orifice_number_fuel = 12            # 4 for impinging, 8 for showerhead film cooling on gg injector
 
-    mdot_gg: float
+    pc: float
+    mdot: float
     p_exit: float
-    Tt_gg: float
+    Tt: float
     c_star_ideal: float
     isp_ideal: float
+    gamma: float
+    R: float
 
-@dataclass
-class pump():
-    fluid: str 
-    
-    name: str
-    p_in: float                 # Pa
-    p_out: float                # Pa
-    density_pump: float         # kg/m^3
-    mdot_pump: float            # kg/s
-    pump_shaft_speed: float     # rad/s (or 1/s; match your source units)
-    vapor_pressure_pump: float  # Pa
-    surface_roughness: float    # m
-    slip_factor: float  # unitless - iterative initial guess
-
-    blockage: float             # unitless - iterative initial guess - 1 is completely open, pump handbook says 0.85 is typical?
-    blade_count: int            # unitless - iterative initial guess
-    head_pump: float            # m
-    vdot_pump: float            # m3/s - Volumetric Flow Rate
-    specific_speed: float       # unitless     
-    specific_speed_imperial: float # Ns pseudo unitless
-    outlet_flow_coeff: float    # unitless - phi_i in pump handbook
-    shutoff_coeff_op: float     # unitless - psi_op
-    shutoff_coeff: float        # 1.25 for volute designs and 1.31 for diffuser designs (kept as input)
-    shutoff_head_coeff: float   # unitless - psi_
-    pump_efficiency: float      # unitless
-    shaft_power: float          # W
-    shaft_power_theory: float   # W
-
-    def __post_init__(self):
+class pump: # fluid is 'ox' or 'fuel'
+    def __init__(self, fluid: str):
+        self.fluid = fluid
         if self.fluid == 'ox':
-            clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-            pump_shaft_speed = 30000*math.pi/30 # rad/s - angular velocity of the pump shaft, impeller, and inducers
-            gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
-            r_hub = 0.006                       # m
-            r_shaft = 0.005                     # m - portion of shaft that is stainless steel
-            impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
-            eye_flow_coeff = 0.25               # unitless - higher means smaller impeller but larger inducer
+            self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
+            self.shaft_speed = 30000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
+            self.gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
+            self.r_hub = 0.006                       # m
+            self.r_shaft = 0.005                     # m - portion of shaft that is stainless steel
+            self.impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
+            self.eye_flow_coeff = 0.25               # unitless - higher means smaller impeller but larger inducer
                 # phi_e in pump handbook; pg 2.29: 0.2-0.3 for impellers, ~0.1 or less for inducers
-            NPSH_margin = 1.5                   # unitless - Margin of extra net positive suction head (NPSH) to be provided by inducers to prevent cavitation
-            blade_number_inducer = 4            # unitless - 3 or 4 is considered good
-            clearance_radial_inducer = 2E-4     # m - radial clearance between inducer blades and housing cavity
-            surface_roughness = 10E-6           # m - surface roughness of the additive material of the impellers
+            self.NPSH_margin = 1.5                   # unitless - Margin of extra net positive suction head (NPSH) to be provided by inducers to prevent cavitation
+            self.blade_number_inducer = 4            # unitless - 3 or 4 is considered good
+            self.clearance_radial_inducer = 2E-4     # m - radial clearance between inducer blades and housing cavity
+            self.surface_roughness = 10E-6           # m - surface roughness of the additive material of the impellers
         elif self.fluid == 'fuel':
-            clocking = -1                        
-            pump_shaft_speed = 30000 * math.pi / 30  
-            gear_efficiency = 1                             
-            r_hub = 0.006               
-            r_shaft = 0.005                               
-            impeller_thickness = 0.003   
-            eye_flow_coeff = 0.25           
-            NPSH_margin = 1.5             
-            blade_number_inducer = 4          
-            clearance_radial_inducer = 2E-4  
-            surface_roughness = 10E-6     
+            self.clocking = 1                        
+            self.shaft_speed = 30000 * math.pi / 30  
+            self.gear_efficiency = 1                             
+            self.r_hub = 0.006               
+            self.r_shaft = 0.005                               
+            self.impeller_thickness = 0.003   
+            self.eye_flow_coeff = 0.25           
+            self.NPSH_margin = 1.5             
+            self.blade_number_inducer = 4          
+            self.clearance_radial_inducer = 2E-4  
+            self.surface_roughness = 10E-6     
         else:
             raise ValueError("fluid must be 'ox' or 'fuel'")
-
-
 
 class turbine:
     r_pitchline_rotor = 0.070                 # m

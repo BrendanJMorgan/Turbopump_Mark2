@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import PchipInterpolator as pchip
+from scipy.interpolate import CubicSpline
 import math
 from dataclasses import dataclass
 from engine_state import engine, pump
@@ -12,7 +12,7 @@ def blades(p: pump):
     inlet_idx = int(np.argmax(meanline_untrimmed[:, 0] > r_inlet_blade))
 
     r_meanline = np.linspace(r_inlet_blade, p.outlet_impeller, 1000) # m
-    z_meanline = pchip(meanline_untrimmed[:, 0], meanline_untrimmed[:, 1])(r_meanline) # m
+    z_meanline = CubicSpline(meanline_untrimmed[:, 0], meanline_untrimmed[:, 1])(r_meanline) # m
 
     meanline_curve = np.column_stack([r_meanline, z_meanline])
 
@@ -22,15 +22,15 @@ def blades(p: pump):
     u_blade = p.pump_shaft_speed * meanline_curve[:, 0] # m/s - blade tangential velocity
     p.v_merid = p.vdot_pump / (2*math.pi*p.meanline_curve*np.norm(p.shroud_curve-p.impeller_curve)) # m/s - meridional velocity
 
-    z_sh_union = pchip(p.shroud_curve[:, 0], p.shroud_curve[:, 1])(r_meanline)
-    z_im_union = pchip(p.impeller_curve[:, 0], p.impeller_curve[:, 1])(r_meanline)
+    z_sh_union = CubicSpline(p.shroud_curve[:, 0], p.shroud_curve[:, 1])(r_meanline)
+    z_im_union = CubicSpline(p.impeller_curve[:, 0], p.impeller_curve[:, 1])(r_meanline)
     gap_thickness = np.abs(z_sh_union - z_im_union) # m
 
     p.hydraulic_efficiency = 1.0 - 0.071 * (p.vdot_pump ** 0.25) # unitless - Jekat's Empirical Formula - valid for all specific speeds CONVERT TO ANDERSON?
 
     v_tangential_inlet = 0.0 # m/s - assuming no pre-swirl from the inducer
 
-    v_tangential_outlet = inputs.g * p.head_pump / (p.hydraulic_efficiency * u_blade[-1]) + v_tangential_inlet # m/s
+    v_tangential_outlet = engine.g * p.head_pump / (p.hydraulic_efficiency * u_blade[-1]) + v_tangential_inlet # m/s
     v_tangential = np.linspace(v_tangential_inlet, v_tangential_outlet, meanline_curve.shape[0]) # m/s - assuming linear ramp of fluid tangential velocity
     fluid_azimuth = np.arctan(p.v_merid /(u_blade - v_tangential)) # rad - angle between fluid flow azimuth and local tangential azimuth (beta_f2 in pump handbook)
 
@@ -51,7 +51,7 @@ def blades(p: pump):
     db3 = np.diff(blade_curve[:, 2])
     blade_arc_length = float(np.sum(np.sqrt(db1**2 + db2**2 + db3**2)))
 
-    solidity_ideal = np.interp(ss, [0.0, 0.4, 3.0], [1.8, 1.8, 1.0]) # unitless - solidity is the optimal ratio of blade chord to blade spacing. Pump handbook page 2.36 (sigma)
+    solidity_ideal = CubicSpline(pump.specific_speed, [0.0, 0.4, 3.0], [1.8, 1.8, 1.0]) # unitless - solidity is the optimal ratio of blade chord to blade spacing. Pump handbook page 2.36 (sigma)
 
     blade_count = int(np.round(solidity_ideal * (2.0 * np.pi * p.outlet_impeller) / blade_arc_length)) # number of blades
 
@@ -68,8 +68,7 @@ def blades(p: pump):
 
     p.meridional_length = np.sum(np.sqrt(np.diff(blade_curve[:, 0])**2 + np.diff(blade_curve[:, 2])**2)) # m - arc length of blade projected onto the meridional plane
 
-    # blockage(p) = 1 - solidity(p)/meanline_arc_length(end,p)*(boundary_layer_thickness(p)+blade_thickness(p)); % unitless - proportion of area not blocked by blades
-    p.blockage = 1.0 - solidity / s[-1] * (boundary_layer_thickness + blade_thickness)
+    p.blockage = 1.0 - solidity / p.meanline_arc_length[-1] * (p.boundary_layer_thickness + p.blade_thickness)
 
     # Velocity Slip - Pfleiderer’s Method - pump handbook pg 2.35
     # Extending this to the full arc length of the meanline, instead of just the tip
