@@ -1,4 +1,0 @@
-h_volute_fuel,6.70260918537089
-t_tongue_fuel,1.66795613012766
-r_volute_outlet_fuel,49.0624670125041
-OD_volute_outlet_fuel,8.45190102725875

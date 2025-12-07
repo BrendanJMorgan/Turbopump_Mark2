@@ -15,9 +15,9 @@ def cc_geometry():
     d1_chamber = tca.d1_chamber                          # m - chamber diameter
     Ac_At = np.pi * (d1_chamber ** 2) / (4 * tca.A_throat)      # unitless - contraction Ratio
     if Ac_At < 2.0:
-        raise ValueError("Contraction ratio is #g, below recommended minimum of 2\\n", (d1_chamber / tca.d_throat) ** 2)
+        raise ValueError(f"Contraction ratio is {round(((d1_chamber / tca.d_throat) ** 2), 2)}, below recommended minimum of 2\n")
     elif Ac_At > 5.0:
-        raise ValueError("Contraction ratio is #g, above recommended maximum of 5\\n", (d1_chamber / tca.d_throat) ** 2)
+        raise ValueError(f"Contraction ratio is {round(((d1_chamber / tca.d_throat) ** 2), 2)}, above recommended maximum of 5\n")
 
     # Chamber Length -----------------------------------------------------------------------------------------------
     V_frustrum = np.pi/3 * (tca.r1_chamber**2 + tca.r1_chamber*tca.r_throat + tca.r_throat**2) * \

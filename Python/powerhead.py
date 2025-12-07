@@ -32,25 +32,27 @@ def powerhead():
 
     # Fuel Pump
     fuel_pump = pump(fluid='fuel')
-    fuel_pump.p_out = fuel_pump.p_cool_1 + 10*6894.76                                               # Pa - add 10 psi of margin for plumbing losses
-    fuel_pump.p_in  = fuel_pump.p_amb                                                               # Pa
-    fuel_pump.T_in  = fuel_pump.T_amb                                                               # K - tank temperature    
-    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(engine.T_amb*1.8)                  # kg/m3 - density of fuel at inlet
-    fuel_pump.mdot  = engine.mdot_fuel_total                                                        # kg/s
-    fuel_pump.pvap_inlet = 0.001*rprop(engine.fuelrp).rp1_pvap_at_TdegR(fuel_pump.T_amb*1.8)    # Pa - vapor pressure of RP1 at tank temperature
+    fuel_pump.p_out = tca.p_cool[-1] + 10*6894.76                                       # Pa - add 10 psi of margin for plumbing losses
+    fuel_pump.p_in = engine.p_amb                                                       # Pa
+    fuel_pump.T_in = engine.T_amb                                                       # K - tank temperature    
+    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(engine.T_amb*1.8)      # kg/m3 - density of fuel at inlet
+    fuel_pump.mdot  = engine.mdot_fuel_total                                           # kg/s
+    fuel_pump.pvap_inlet = 0.001*rprop('RP1').PvapAtTdegR(engine.T_amb*1.8) # Pa - vapor pressure of RP1 at tank temperature
     
     pumps(fuel_pump)
 
+    gg.pc = np.min([fuel_pump.p_out, ox_pump.p_out]) * gg.stiffness  # Pa - combustion chamber pressure guess
     gas_generator()
 
     # Turbine
     if engine.common_shaft == True:
         common_turbine = turbine()
         # TODO: power loss into bearings and seals
-        common_turbine.shaft_efficiency = turbine.gear_efficiency # unitless - efficiency of power transmission through the shaft(s)
+        common_turbine.shaft_efficiency = 1 # unitless - efficiency of power transmission through the shaft(s)
         common_turbine.shaft_power = (ox_pump.shaft_power+fuel_pump.shaft_power)/common_turbine.shaft_efficiency  
             # W - power that must be produced by the turbine
-        turbines(turbine=common_turbine)
+        common_turbine.shaft_speed = ox_pump.shaft_speed  # rad/s - both pumps on same shaft
+        turbines(common_turbine)
     else:
         ox_turbine = turbine()
         fuel_turbine = turbine()

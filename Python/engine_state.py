@@ -8,7 +8,7 @@ class engine: # For parameters that don't fit neatly within other categories
 
     g = 9.80665         # m/s2
 
-    thrust = 15000      # N - Thrust TODO: include gg exhaust thrust into total thrust
+    thrust = 20000      # N - Thrust INCLUDE GG EXHAUST THRUST
     p_amb = 93900       # Pa - ambient pressure at 2100 feet elevation
     T_amb = 293         # K - Ambient Temperature - lowest temperature for which 75/25 ethanol is solvable by CoolProp
     
@@ -25,7 +25,7 @@ class engine: # For parameters that don't fit neatly within other categories
 
 class tca: # Thrust Chamber Assembly
 
-    pc = 30E5           # Pa - Chamber (Stagnation) Pressure
+    pc = 40E5           # Pa - Chamber (Stagnation) Pressure
     stiffness = 0.25    # Pa/Pa - guess   
     OF = 2.0            # Oxidizer/Fuel Ratio (by mass)
     c_star_eff = 0.85   # Characteristic Vel Efficiency, experimental
@@ -83,6 +83,7 @@ class gg: # Gas Generator
     c_star_eff = 0.75                   # m/s - characteristic velocity efficiency, experimental ANY PAPERS ON THIS?
     c_tau_eff = 0.96                    # unitless - Thrust Coefficient Efficiency Factor
     orifice_number_fuel = 12            # 4 for impinging, 8 for showerhead film cooling on gg injector
+    r_chamber = 0.025                   # m - radius of combustion chamber
 
     pc: float
     mdot: float
@@ -98,9 +99,9 @@ class pump: # fluid is 'ox' or 'fuel'
         self.fluid = fluid
         if self.fluid == 'ox':
             self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-            self.shaft_speed = 30000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
+            self.shaft_speed = 25000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
             self.gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
-            self.r_hub = 0.006                       # m
+            self.r_hub_impeller = 0.006                       # m
             self.r_shaft = 0.005                     # m - portion of shaft that is stainless steel
             self.impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
             self.eye_flow_coeff = 0.25               # unitless - higher means smaller impeller but larger inducer
@@ -109,29 +110,31 @@ class pump: # fluid is 'ox' or 'fuel'
             self.blade_number_inducer = 4            # unitless - 3 or 4 is considered good
             self.clearance_radial_inducer = 2E-4     # m - radial clearance between inducer blades and housing cavity
             self.surface_roughness = 10E-6           # m - surface roughness of the additive material of the impellers
+            self.hub_tip_ratio_inducer = 0.3         # unitless - ratio of hub radius to tip radius of inducer
         elif self.fluid == 'fuel':
             self.clocking = 1                        
-            self.shaft_speed = 30000 * math.pi / 30  
+            self.shaft_speed = 25000 * math.pi / 30  
             self.gear_efficiency = 1                             
-            self.r_hub = 0.006               
+            self.r_hub_impeller = 0.006               
             self.r_shaft = 0.005                               
             self.impeller_thickness = 0.003   
             self.eye_flow_coeff = 0.25           
             self.NPSH_margin = 1.5             
             self.blade_number_inducer = 4          
             self.clearance_radial_inducer = 2E-4  
-            self.surface_roughness = 10E-6     
+            self.surface_roughness = 10E-6
+            self.hub_tip_ratio_inducer = 0.3         # unitless - ratio of hub radius to tip radius of inducer
         else:
             raise ValueError("fluid must be 'ox' or 'fuel'")
 
 class turbine:
-    r_pitchline_rotor = 0.070                 # m
+    r_pitchline = 0.096                 # m
     gear_ratio = 1                            # unitless - higher makes for a faster, smaller turbine. 1 = common shaft
     d_throat_nozzle = 0.127 * 0.0254          # m - diameter of each nozzle leading off the manifold - mdot_gg is a direct function of this and nozzle_number
     diverge_angle_gg = 15 * math.pi / 180     # rad - half-cone divergence angle of nozzle plate
-    blade_width_rotor = 0.5 * 0.0254          # m - real turbines seems to be about 0.5 inches or so
+    blade_width = 0.5 * 0.0254          # m - real turbines seems to be about 0.5 inches or so
     admission_fraction = 20 / 360             # unitless - fraction of the nozzle plate circle that actually has nozzles
-    blade_length_rotor = 0.25 * 0.0254        # m
+    blade_length = 0.25 * 0.0254        # m
     tip_clearance = 0.0005                    # m
     radius_leading = 0.002                    # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
 

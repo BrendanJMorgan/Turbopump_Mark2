@@ -1,68 +1,68 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 import numpy as np
+from scipy.special import fresnel
 from engine_state import engine, pump
 from typing import List
-import math
 
 def impellers(p: pump):
     # Impeller Contours - pg 2.29-2.32 in pump handbook
     r_eye_margin = 1.15 + 0.2116*(p.specific_speed-0.2836); 
         # unitless - margin correction factor, Gulich 7.1.4; interpolated for a normal impeller (not a suction impeller)
     swirl_number = 1; # NEEDS TO BE A FUNCTION OF INDUCER OUTLET CONDITIONS (ITERATIVE)
-    r_inlet_impeller = r_eye_margin * np.sqrt(p.r_hub**2 + 0.0026418 * p.outlet_flow_coeff* p.specific_speed**1.33 / swirl_number**0.67) 
+    p.r_inlet_impeller = r_eye_margin * np.sqrt(p.r_hub_impeller**2 + 0.0026418 * p.outlet_flow_coeff* p.specific_speed**1.33 / swirl_number**0.67) 
         # m - impeller inlet radius, Gulich eqn 7.1.4
 
-    r_outlet_impeller = 1 / abs(p.shaft_speed) * np.sqrt (engine.g*p.head_rise / p.head_coeff); # m - impeller exit radius, Gulich eqn 7.1.3
+    p.r_outlet_impeller = 1 / abs(p.shaft_speed) * np.sqrt (engine.g*p.head_rise / p.head_coeff); # m - impeller exit radius, Gulich eqn 7.1.3
 
     # The exit width b2 ------------------------------------------------------------------------------
-    w_exit = 2*r_outlet_impeller * (0.017 + 0.1386*p.specific_speed - 0.022387*p.specific_speed**2 + 0.0013767*p.specific_speed**3) 
+    w_outlet = 2*p.r_outlet_impeller * (0.017 + 0.1386*p.specific_speed - 0.022387*p.specific_speed**2 + 0.0013767*p.specific_speed**3) 
         # m - outlet width; empirical; Gulich eqn 7.1
-
-    du = 0.001 # unitless - differential arc length, normalized
-    u = np.linspace(0, 1, np.round(1/ds)) # m - normalized arc length along meanline from inlet (0) to outlet (1)
-    weight = 0.1 # unitless - weighting factor for area distribution shape
 
     # this needs boundary layer and leakage effect - pg 2.60?
     # could parameterize a width at each station with a blockage vector, linear ramp of area?
 
     # Hub and shroud profiles ------------------------------------------------------------------
-    # specify a smoothly varying curvature and derive a curve out of that?
-    cavitation_curvature = 2/r_inlet_impeller # pump handbook recommends a minimum turning radius of hlaf the eye radius
-    kappa = np.linspace(cavitation_curvature, 0, len(u)) # 1/m - curvature of the shroud curve; flattens out at the end
-        # this should be modified to have a short inlet section with low curvature, to achieve a flatter pressure distribution impinging on blades
+    n_pts_meridional = 1000
 
-    inlet_azimuth_shroud = -np.pi/2 # rad
-    outlet_azimuth_shroud = 0 # rad - replace with epsilon_ds from Gulich
+    eps_ds = 10*np.pi/180 # rad - outlet shroud angle from Gulich table 7.1
+    X = lambda t: np.sqrt(np.pi) * fresnel(t/np.sqrt(np.pi))[0] # clothoid / fresnel integral
+    Y = lambda t: np.sqrt(np.pi) * fresnel(t/np.sqrt(np.pi))[1] # clothoid / fresnel integral
+    T = np.sqrt(np.pi - 2*eps_ds) # upper limit of clothoid to achieve desired outlet angle
 
-    length_shroud = (outlet_azimuth_shroud - inlet_azimuth_shroud) / np.trapezoid(kappa, u) # m - total arc length of the shroud
+    clothoid = lambda t: ((p.r_inlet_impeller-p.r_outlet_impeller)/(np.sin(eps_ds)*Y(T) - np.cos(eps_ds)*X(T)))*np.vstack([X(t)*np.cos(eps_ds) - Y(t)*np.sin(eps_ds),
+                                                                                                                X(t)*np.sin(eps_ds) + Y(t)*np.cos(eps_ds)]).T
+    shroud_curve_raw = clothoid(np.linspace(T, 0, n_pts_meridional))    # [m,m] - (r,z) coordinates of shroud curve from outlet to inlet
+    #shroud_curve_raw = np.flip(shroud_curve_raw, axis=1)                # [m,m] - reverse to go from inlet to outlet
+    p.shroud_curve = (shroud_curve_raw + np.ones_like(shroud_curve_raw)*[-p.r_outlet_impeller, shroud_curve_raw[-1,1]])*[-1,1]  # [m,m] - translate the origin to the inlet central point, and flip from quadrant IV to I
+    
+    ds = np.linalg.norm(np.diff(p.shroud_curve, axis=0), axis=1)    # m - differential arc length along shroud curve
+    s  = np.concatenate(([0.0], np.cumsum(ds)))                     # m - arc length along shroud curve
+    s_shroud = s / s[-1]                                            # unitless - normalized arc length along shroud curve
+    s_shroud = s_shroud.T                                           # make into column vector
 
-    theta = np.empty(len(u)) # rad
-    theta[0] = inlet_azimuth_shroud # rad
+    A_inlet = np.pi*(p.r_inlet_impeller**2 - p.r_hub_impeller**2)      # m2 - annular flow area at impeller inlet
+    A_outlet = 2*np.pi*p.r_outlet_impeller*w_outlet                       # m2 - annular flow area at impeller outlet
+    weight = 2*np.pi*p.r_outlet_impeller/np.tan(eps_ds) - np.pi*w_outlet  # unitless - weighting factor for area distribution along meanline
+    p.A_meanline = (A_outlet-A_inlet) * (2*(weight-1)*s_shroud**3 - 3*(weight-1)*s_shroud**2 + weight*s_shroud) + A_inlet # m2 - area distribution along meanline
 
-    for i in range(1, len(u)):
-        k_avg = 0.5 * (kappa[i-1] + kappa[i])
-        theta[i] = theta[i-1] + length_shroud*k_avg*ds
+    tangents_shroud = np.empty_like(p.shroud_curve)
+    tangents_shroud[1:-1] = p.shroud_curve[2:] - p.shroud_curve[:-2]
+    tangents_shroud[0]    = p.shroud_curve[1] - p.shroud_curve[0]
+    tangents_shroud[-1]   = p.shroud_curve[-1] - p.shroud_curve[-2]
+    normals_shroud = np.column_stack([-tangents_shroud[:,1], tangents_shroud[:,0]]) # rotate tangent +90° in (r,z) plane -> normal
+    normals_shroud /= np.linalg.norm(normals_shroud, axis=1, keepdims=True)
 
-    r_shroud = np.empty(len(u))
-    z_shroud = np.empty(len(u))
-    r_shroud[0] = r_inlet_impeller
-    z_shroud[0] = 0 # puts the curve into quadrant IV of the coordinate plane
-
-    ds_shroud = length_shroud * du # m - differential arc length
-    s_shroud = length_shroud * s # m - arc length
-    for i in range(1, len(u)):
-        cos_avg = 0.5 * (np.cos(theta[i - 1]) + np.cos(theta[i]))
-        sin_avg = 0.5 * (np.sin(theta[i - 1]) + np.sin(theta[i]))
-        r_shroud[i] = r_shroud[i - 1] + cos_avg * ds_shroud
-        z_shroud[i] = z_shroud - 1 + sin_avg * ds_shroud
-
-    A_inlet = np.pi*(r_outlet_impeller**2 - r_inlet_impeller**2) # m2 - annular flow area at impeller inlet
-    A_outlet = 2*np.pi*r_outlet_impeller*w_exit # m2 - annular flow area at impeller outlet
-    A = A_inlet-A_outlet * (2*(weight-1)*s_shroud**3 - 3*(weight-1)*s_shroud**2 + weight*s_shroud) + A_outlet # m2 - area distribution along meanline
-
-
-
+    determinant = p.shroud_curve[:,0]**2 - p.A_meanline*p.shroud_curve[:,0]/np.pi
+    crosswise_meanline = (-p.shroud_curve[:,0] - np.sqrt(p.shroud_curve[:,0]**2 - p.A_meanline*normals_shroud[:,0]/np.pi)) / normals_shroud[:,0] # m - crosswise distance between shroud and hub curves
+    p.hub_curve = p.shroud_curve + crosswise_meanline[:, None] * normals_shroud # m - (r,z) coordinates of hub curve from outlet to inlet
+    
+    # dummy = p.shroud_curve[:,0]**2 - p.A_meanline*normals_shroud[:,0]/np.pi
+    # d1 = p.shroud_curve[999,0]
+    # d2 = p.A_meanline[999]
+    # d3 = normals_shroud[999,0]
+    # d4 = shroud_curve_raw[999,0]
+    p.meanline_curve = 0.5 * (p.shroud_curve + p.hub_curve); # [m,m] - halfway between shroud and impeller 
 
 
 

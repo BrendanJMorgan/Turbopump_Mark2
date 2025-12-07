@@ -12,11 +12,10 @@ from inducer import inducer
 def pumps(p: pump):
 
     p.head_rise = (p.p_out - p.p_in) / (p.density * engine.g) # m
-
     p.vdot = p.mdot / p.density # m3/s - Volumetric Flow Rate
 
     # Sizing the Pump --------------------------------------------------------
-    p.specific_speed = abs(p.shaft_speed) * np.sqrt(p.vdot) / (p.head_rise ** 0.75) # unitless 
+    p.specific_speed = abs(p.shaft_speed) * np.sqrt(p.vdot) / (engine.g * p.head_rise ** 0.75) # unitless 
 
     p.specific_speed_imperial = p.specific_speed * 229.6        # Ns pseudo unitless
     p.outlet_flow_coeff = 0.1715 * np.sqrt(p.specific_speed)  # unitless - phi_i in pump handbook
@@ -28,8 +27,7 @@ def pumps(p: pump):
 
     # specific speed check - should be in the centrifugal range
     if p.specific_speed < 0.1 or p.specific_speed > 0.6:
-        print(f"[{p.fluid}] pump specific speed is {p.specific_speed:.4g}. "
-              f"Recommended is 0.1 to 0.6 for centrifugal geometries.")
+        print(f"{p.fluid} pump specific speed is {round(p.specific_speed,2)}. Recommended is 0.1 to 0.6 for centrifugal geometries.")
         
     p.blockage = 0.85       # unitless - iterative initial guess - 1 is completely open, pump handbook says 0.85 is typical?
     p.old_blockage = 0      # placeholder
@@ -63,9 +61,9 @@ def pumps(p: pump):
     p.shaft_power_theory = p.vdot * p.head_rise * p.density * engine.g # W
 
     # Other
-    p.v_inlet = p.vdot / ( (np.pi/4.0) * (p.d_inlet_pump ** 2) ) # m/s - inlet velocity
-    p.cavitation_inlet = (p.p_in - p.pvap_inlet) / (0.5 * p.density * (p.v_inlet ** 2)) # unitless
-    p.v_outlet_pump = p.vdot / ( (np.pi/4.0) * (p.d_outlet_pump ** 2) ) # m/s - outlet velocity
-    p.cavitation_outlet = (p.p_out - p.pvap_inlet) / (0.5 * p.density * (p.v_outlet_pump ** 2)) # unitless
-    p.v_volute = np.sqrt(2.0 * p.power / p.mdot) # m/s - average tangential velocity along the contour of the volute
+    # p.v_inlet = p.vdot / ( (np.pi/4.0) * (p.d_inlet_pump ** 2) ) # m/s - inlet velocity
+    # p.cavitation_inlet = (p.p_in - p.pvap_inlet) / (0.5 * p.density * (p.v_inlet ** 2)) # unitless
+    # p.v_outlet_pump = p.vdot / ( (np.pi/4.0) * (p.d_outlet_pump ** 2) ) # m/s - outlet velocity
+    # p.cavitation_outlet = (p.p_out - p.pvap_inlet) / (0.5 * p.density * (p.v_outlet_pump ** 2)) # unitless
+    # p.v_volute = np.sqrt(2.0 * p.power / p.mdot) # m/s - average tangential velocity along the contour of the volute
 

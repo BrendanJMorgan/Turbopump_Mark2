@@ -17,7 +17,7 @@ def combustion_chamber():
     # Performance Parameters -----------------------------------------------------------------------------------
     [tca.isp_ideal,b,c] = cea_cc.get_IvacCstrTc(Pc=tca.pc/6894.76, MR=tca.OF, eps=tca.Ae_At) # s - specific impulse
     tca.c_star_ideal = b/3.28084 # m/s - Characteristic Velocity
-    tca.Tt_cc = c/1.8 # K - chamber temperature
+    tca.Tt = c/1.8 # K - chamber temperature
     tca.p_exit = engine.p_amb; # Pa - exit pressure - assumes perfectly expanded flow
     tca.v_exhaust_ideal = tca.isp_ideal*engine.g; # m/s - ideal exhaust velocity
 
@@ -33,7 +33,7 @@ def combustion_chamber():
     v_exhaust = tca.c_star * tca.c_tau  # m/s - Exhaust Velocity
 
     # Mass Flow Rates ----------------------------------------------------------------------------------------------
-    tca.mdot = tca.A_throat / (np.sqrt(tca.Tt_cc)/tca.pc * np.sqrt(tca.R_gas/gamma_avg_nozzle) * 
+    tca.mdot = tca.A_throat / (np.sqrt(tca.Tt)/tca.pc * np.sqrt(tca.R_gas/gamma_avg_nozzle) * 
                           ((gamma_avg_nozzle+1)/2)**((gamma_avg_nozzle+1)/(2*(gamma_avg_nozzle-1)))); # m2 - throat area
     tca.mdot_fuel = tca.mdot*(1/(1+tca.OF));            # kg/s - Fuel Mass Flow Rate
     tca.mdot_ox = tca.mdot*(tca.OF/(1+tca.OF));   # kg/s - Oxidizer Mass Flow Rate

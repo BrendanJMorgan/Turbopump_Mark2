@@ -1,6 +1,0 @@
-h_min_fuel,1.1602347194825
-r_tip_fuel,19.6699595546738
-r_hub_base_fuel,6.35
-r_hub_top_fuel,9.38596764373905
-blade_lead_fuel,15.2039136829087
-clearance_fuel,3.80097842072716

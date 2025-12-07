@@ -11,7 +11,7 @@ def coolant_flow():
     kin_visc_cool = dyn_visc_cool / density_cool # m2/s - kinematic viscosity of RP1
     mdot_cool = tca.mdot_fuel # kg/s
 
-    p_cool = np.full(len(tca.x), float(engine.p_amb))     # Pa - coolant pressure (initialized at p_amb)
+    tca.p_cool = np.full(len(tca.x), float(engine.p_amb))     # Pa - coolant pressure (initialized at p_amb)
     d_hydraulic = 4.0 * tca.w_pipe * tca.h_pipe / (2.0 * tca.w_pipe + 2.0 * tca.h_pipe)  # m - hydraulic diameter
 
     area = tca.w_pipe * tca.h_pipe # m2 - cross-sectional area of one channel
@@ -68,11 +68,11 @@ def coolant_flow():
         dp = dp1 + dp2 + dp3  # Pa - Total Losses
 
         # March pressure to the next station
-        p_cool[i+j] = p_cool[i] - dp
+        tca.p_cool[i+j] = tca.p_cool[i] - dp
 
         v_cool[i+j] = mdot_cool / (density_cool * tca.n_pipe[i+j] * area[i+j]) # m/s - fluid bulk speed at each station
         Re_cool[i+j] = v_cool[i+j] * d_hydraulic[i+j] / kin_visc_cool # unitless - Reynolds number
         f_cool[i+j] = (0.79 * np.log(Re_cool[i+j]) - 1.64) ** (-2.0) # unitless - friction factor, smooth pipe approximation REVIEW IF THIS IS ACCURATE
 
-    p_cool = p_cool + tca.pc * (1.0 + tca.stiffness) - p_cool[flow_exit_index]
+    tca.p_cool = tca.p_cool + tca.pc * (1.0 + tca.stiffness) - tca.p_cool[flow_exit_index]
 
