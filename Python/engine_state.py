@@ -8,9 +8,9 @@ class engine: # For parameters that don't fit neatly within other categories
 
     g = 9.80665         # m/s2
 
-    thrust = 20000      # N - Thrust INCLUDE GG EXHAUST THRUST
+    thrust = 30000      # N - Thrust INCLUDE GG EXHAUST THRUST
     p_amb = 93900       # Pa - ambient pressure at 2100 feet elevation
-    T_amb = 293         # K - Ambient Temperature - lowest temperature for which 75/25 ethanol is solvable by CoolProp
+    T_amb = 293         # K - Ambient Temperature
     
     fuel = 'JetA'       # 'JetA' 'C2H5OH(L)'
     fuelrp = 'RP1'      # rocketprop only has RP-1 not Jet-A
@@ -25,7 +25,7 @@ class engine: # For parameters that don't fit neatly within other categories
 
 class tca: # Thrust Chamber Assembly
 
-    pc = 40E5           # Pa - Chamber (Stagnation) Pressure
+    pc = 50E5           # Pa - Chamber (Stagnation) Pressure
     stiffness = 0.25    # Pa/Pa - guess   
     OF = 2.0            # Oxidizer/Fuel Ratio (by mass)
     c_star_eff = 0.85   # Characteristic Vel Efficiency, experimental
@@ -99,13 +99,11 @@ class pump: # fluid is 'ox' or 'fuel'
         self.fluid = fluid
         if self.fluid == 'ox':
             self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-            self.shaft_speed = 25000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
+            self.shaft_speed = 20000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
             self.gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
             self.r_hub_impeller = 0.006                       # m
             self.r_shaft = 0.005                     # m - portion of shaft that is stainless steel
             self.impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
-            self.eye_flow_coeff = 0.25               # unitless - higher means smaller impeller but larger inducer
-                # phi_e in pump handbook; pg 2.29: 0.2-0.3 for impellers, ~0.1 or less for inducers
             self.NPSH_margin = 1.5                   # unitless - Margin of extra net positive suction head (NPSH) to be provided by inducers to prevent cavitation
             self.blade_number_inducer = 4            # unitless - 3 or 4 is considered good
             self.clearance_radial_inducer = 2E-4     # m - radial clearance between inducer blades and housing cavity
@@ -138,8 +136,8 @@ class turbine:
     tip_clearance = 0.0005                    # m
     radius_leading = 0.002                    # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
 
-    power_turbine: float
-    mdot_turbine: float
+    power: float
+    mdot: float
     p_in: float
     p_out: float
     Tt_in: float

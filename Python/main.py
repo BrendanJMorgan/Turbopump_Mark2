@@ -15,6 +15,7 @@ from dataclasses import dataclass, asdict
 
 from thrust_chamber_assembly import thrust_chamber_assembly
 from powerhead import powerhead
+from plots import plots
 from engine_state import engine, tca, pump, turbine, gg
 # from plots import plots
 
@@ -23,6 +24,8 @@ def main():
     thrust_chamber_assembly() # contains submodules combustion_chamber, cc_geometry, cc_gas_flow, coolant_flow
     powerhead() # contains submodules pump, gas_generator, turbine
     isp_real = engine.thrust/(tca.mdot+gg.mdot)/engine.g
+    plots()
+
     # # Results (match MATLAB names)
     # thrust = ph_results.get("thrust", np.nan) 
     # isp_ideal = ph_results.get("isp_ideal", np.nan)

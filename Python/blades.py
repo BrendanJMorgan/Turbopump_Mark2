@@ -12,10 +12,11 @@ def blades(p: pump):
     inlet_idx = int(np.argmax(p.meanline_curve[:, 0] > r_inlet_blade))
 
     p.meanline_curve_bladed = p.meanline_curve[inlet_idx:, :] # [m,m] - the portion of the meanline with a blade
+    p.crosswise_meanline_bladed = p.crosswise_meanline[inlet_idx:] # m - crosswise distance between shroud and hub along bladed meanline
 
     # Velocity Triangles
     p.u_blade = p.shaft_speed * p.meanline_curve_bladed[:, 0] # m/s - blade tangential velocity
-    p.v_merid = p.vdot / (2*math.pi*p.meanline_curve_bladed[:,0]*np.linalg.norm(p.shroud_curve-p.hub_curve, axis=1)) # m/s - meridional velocity
+    p.v_merid = p.vdot / (2*math.pi*p.meanline_curve_bladed[:,0]*p.crosswise_meanline_bladed) # m/s - meridional velocity
 
     p.hydraulic_efficiency = 1.0 - 0.071 * (p.vdot ** 0.25) # unitless - Jekat's Empirical Formula - valid for all specific speeds CONVERT TO ANDERSON?
 
@@ -30,22 +31,17 @@ def blades(p: pump):
     dm = np.sqrt(np.diff(p.meanline_curve_bladed[:,0])**2 + np.diff(p.meanline_curve_bladed[:,1])**2) # m - differential arc length along meanline
     p.meanline_arc_length = np.concatenate([[0.0], np.cumsum(dm)]) # m - meanline cumulative arc length
 
-    theta_blade = np.concatenate([[0.0], cumulative_trapezoid(1.0 / np.tan(blade_azimuth), p.meanline_curve_bladed[:,0])]) / p.meanline_curve_bladed[:,0] # rad
+    theta_blade = cumulative_trapezoid(1.0/np.tan(blade_azimuth)/p.meanline_curve_bladed[:,0], p.meanline_curve_bladed[:,0], initial=0)  # rad
 
-    blade_curve = np.column_stack([
-        p.meanline_curve_bladed[:,0] * np.cos(theta_blade),-p.clocking * np.sin(theta_blade),p.meanline_curve_bladed[:,1],
-    ])
+    blade_curve = np.column_stack([p.meanline_curve_bladed[:,0] * np.cos(theta_blade),-p.clocking * np.sin(theta_blade),p.meanline_curve_bladed[:,1],])
 
     # Number of Blades -------------------------------------------------------------
-    db1 = np.diff(blade_curve[:, 0])
-    db2 = np.diff(blade_curve[:, 1])
-    db3 = np.diff(blade_curve[:, 2])
-    blade_arc_length = float(np.sum(np.sqrt(db1**2 + db2**2 + db3**2)))
+    blade_arc_length = float(np.linalg.norm(np.diff(blade_curve, axis=0), axis=1).sum())
 
     solidity_ideal = float(CubicSpline([0.0, 0.4, 3.0], [1.8, 1.8, 1.0])(p.specific_speed))
         # unitless - solidity is the optimal ratio of blade chord to blade spacing. Pump handbook page 2.36 (sigma)
 
-    blade_count = int(np.round(solidity_ideal * (2.0 * np.pi * p.r_outlet_impeller) / blade_arc_length)) # number of blades
+    blade_count = np.round(solidity_ideal * (2.0 * np.pi * p.r_outlet_impeller) / blade_arc_length) # number of blades
 
     solidity = blade_count * blade_arc_length / (2.0 * np.pi * p.r_outlet_impeller) # unitless
 

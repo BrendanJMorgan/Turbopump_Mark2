@@ -21,7 +21,7 @@ def pumps(p: pump):
     p.outlet_flow_coeff = 0.1715 * np.sqrt(p.specific_speed)  # unitless - phi_i in pump handbook
 
     ft = 1.0; # unitless - could range to 1.1 to be more aggressive on head, on low head pumps
-    p.head_coeff = 0.605 * ft * np.exp(-0.408 * p.specific_speed)  # unitless - psi_op; eqn 3.26 in Gulich
+    p.head_coeff = 0.5 * 1.21 * ft * np.exp(-0.408 * p.specific_speed)  # unitless - psi_op; eqn 3.26 in Gulich
     p.shutoff_coeff = 1.25; # 1.25 for volute designs and 1.31 for diffuser designs (kept as input)
     p.shutoff_head_coeff = 0.5 * p.shutoff_coeff * 0.625 * np.exp(-4.15 * p.specific_speed) # unitless - psi_0 in the limit pf Q=0
 
@@ -49,7 +49,7 @@ def pumps(p: pump):
         impellers(p)
         blades(p)
 
-    volute(p)
+    #volute(p)
     inducer(p)
 
     # Requirements for Turbine ----------------------------------------------

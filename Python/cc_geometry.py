@@ -84,3 +84,6 @@ def cc_geometry():
     dA = 2 * np.pi * r1 * np.sqrt(1 + drdx**2) * tca.dx
     A_cum = cumulative_trapezoid(dA, tca.x, initial=0.0)      # MATLAB cumtrapz(x, dA)
 
+    tca.r1 = r1
+    tca.r2 = r2
+
