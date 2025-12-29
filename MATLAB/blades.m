@@ -13,8 +13,8 @@ meanline_curve(:,:,p) = [r_meanline, z_meanline]; % [m,m] - blade meanline
 
 %% Velocity Triangles
 u_blade(:,p) = pump_shaft_speed(p)*meanline_curve(:,1,p); % m/s - blade tangential velocity
-v_merid(:,p) = vdot_pump(p)/(pi*(r_inlet_impeller(p)^2-r_hub(p)^2)).*ones(1000,1); % m/s - NEEDS TO VARY ALONG MEANLINE
-% v_merid(:,p) = vdot_pump(p) ./ (2*pi*meanline_curve(:,1,p).*vecnorm(shroud_curve(:,:,p)-impeller_curve(:,:,p),2,2)); % m/s - meridional velocity
+% v_merid(:,p) = vdot_pump(p)/(pi*(r_inlet_impeller(p)^2-r_hub(p)^2)).*ones(1000,1); % m/s - NEEDS TO VARY ALONG MEANLINE
+v_merid(:,p) = vdot_pump(p) ./ (2*pi*meanline_curve(:,1,p).*vecnorm(shroud_curve(:,:,p)-impeller_curve(:,:,p),2,2)); % m/s - meridional velocity
 
 hydraulic_efficiency(p) = 1 - 0.071 / vdot_pump(p)^0.25; % unitless - Jekat's Empirical Formula - valid for all specific speeds CONVERT TO ANDERSON?
 

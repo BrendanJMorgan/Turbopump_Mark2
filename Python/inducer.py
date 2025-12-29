@@ -14,11 +14,11 @@ def inducer(p) -> None:
     p.NPSH_required = p.NPSH_SE  # m - assuming operation at best efficiency point (BEP) and shockless
 
     p.NPSH_available = (p.p_tank - p.pvap_inlet) / (p.density * engine.g)  # m - Net positive suction head. Assuming zero plumbing water column and inlet velocity
-    p.NPSH_inducer = (p.NPSH_required - p.NPSH_available) * p.NPSH_margin  # m
+    p.head_inducer = (p.NPSH_required - p.NPSH_available) * p.NPSH_margin  # m
 
     # Tip Diameter
     p.vdot_corrected = p.vdot / (1 - p.hub_tip_ratio_inducer**2)  # m^3/s - volumetric flow rate through open portion of inducer
-    p.ss_speed = p.shaft_speed * np.sqrt(p.vdot) / (engine.g * p.NPSH_inducer)**0.75  # unitless - suction specific speed
+    p.ss_speed = p.shaft_speed * np.sqrt(p.vdot) / (engine.g * p.NPSH_required)**0.75  # unitless - suction specific speed
     p.flow_coeff_inducer = (
         1.3077 * np.sqrt(1 + p.hub_tip_ratio_inducer**2) / p.ss_speed
         * (1 + 0.5 * np.sqrt(1 + 6 * (1.3077 * np.sqrt(1 + p.hub_tip_ratio_inducer**2) / p.ss_speed) ** 2))
@@ -47,7 +47,7 @@ def inducer(p) -> None:
 
     # Head
     p.v_tip_inducer = p.shaft_speed * p.r_tip_inducer  # m/s
-    p.head_coeff_inducer = p.NPSH_inducer * engine.g / (p.v_tip_inducer**2)  # unitless - 0.15 is the cutoff between low and high head - camber needed if >0.075
+    p.head_coeff_inducer = p.head_inducer * engine.g / (p.v_tip_inducer**2)  # unitless - 0.15 is the cutoff between low and high head - camber needed if >0.075
 
     # Hub Construction
     p.r_hub_base = p.r_hub_impeller  # m

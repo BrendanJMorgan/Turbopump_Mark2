@@ -7,11 +7,12 @@ xlabel("Distance from Injector (m)");
 title("Combustion Chamber Contours")
 
 %% TCA Temperatures 
-% figure(2); clf
+figure(2); clf
+plot(x,p_cool/1E5)
 % plot(x,T_wall_cold,x,T_wall_hot,x,T_cool,x,T_film,x,T_free,x,T_ab,x,T_recovery,x,T_ref)
 % yline(0)
 % legend("Cold Wall","Hot Wall","Regen Coolant","Film Coolant","Free-Stream Gas","Adiabatic", "Recovery", "Gas Property Reference",'Location','northeast');
-% xlabel("Distance from Injector (m)");
+xlabel("Distance from Injector (m)");
 % ylabel("Temperature (K)");
 % title("Engine Steady-State Temperatures")
 

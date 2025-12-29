@@ -1,4 +1,4 @@
-h_volute_ox,10.2319588006911
-t_tongue_ox,1.03459502026039
-r_volute_outlet_ox,33.5113920162773
+h_volute_ox,11.8482988063483
+t_tongue_ox,1.93023468478498
+r_volute_outlet_ox,59.7392328695099
 OD_volute_outlet_ox,0

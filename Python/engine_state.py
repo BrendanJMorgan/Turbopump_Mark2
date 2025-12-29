@@ -19,25 +19,21 @@ class engine: # For parameters that don't fit neatly within other categories
 
     common_shaft = True # Whether the pumps share a common shaft
 
-    mdot: float
-    mdot_ox: float
-    mdot_fuel: float
-
 class tca: # Thrust Chamber Assembly
 
     pc = 50E5           # Pa - Chamber (Stagnation) Pressure
     stiffness = 0.25    # Pa/Pa - guess   
     OF = 2.0            # Oxidizer/Fuel Ratio (by mass)
     c_star_eff = 0.85   # Characteristic Vel Efficiency, experimental
-    c_tau_eff = 0.95    # Thrust Coefficient Efficiency Factor
+    c_tau_eff = 0.95    # Thrust Coefficient Efficiency, experimental
 
     # Chamber/Nozzle Geometry
-    dx = 0.001                                # m - position step 
+    dx = 0.0001                                # m - position step 
     converge_angle = 45 * math.pi / 180       # rad - half-cone convergence angle of combustion chamber end
     diverge_angle = 15 * math.pi / 180        # rad - half-cone divergence angle of nozzle
-    l_star = 1                                # m - characteristic chamber length UPDATE FOR JET-A
-    rc_throat = 0.025                         # m - radius of curvature around the throat
-    d2_chamber = 0.125                        # m
+    l_star = 1.5                                # m - characteristic chamber length
+    # rc_throat = 0.025                         # m - radius of curvature around the throat
+    d2_chamber = 6.5*0.0254                        # m
     wall_thickness = 0.006                         # m % SLANT VS VERTICAL THICKNESS
     d1_chamber = d2_chamber - 2 * wall_thickness   # m
     r1_chamber = d1_chamber / 2               # m
@@ -47,7 +43,7 @@ class tca: # Thrust Chamber Assembly
     n_pipe2 = 16                              # number of channels near throat
     n_pipe3 = 16                              # number of channels along lower nozzle section
     gap_pipe = 1/4 * 0.0254                   # m - Gap between channels (fin thickness)
-    h_pipe = 1/16 * 0.0254                    # m - coolant channel height
+    h_pipe = 1/4 * 0.0254                    # m - coolant channel height
     merge_radius = 0.45 * d1_chamber          # m - when contour is below this radius, transition to n_pipe2
     flow_direction = -1                       # 1 = forward flow (injector to nozzle), -1 = counter flow (nozzle to injector)
 
@@ -63,19 +59,6 @@ class tca: # Thrust Chamber Assembly
 
     compute_thermals = False                  # Whether to run regen thermal balance (tends to increase runtime significantly)
 
-    mdot: float
-    mdot_fuel: float
-    mdot_ox: float
-    gamma_avg_nozzle: float
-    Tt_cc: float
-    c_star_ideal: float
-    p_exit: float
-    isp_ideal: float
-    v_exhaust_ideal: float
-    R_gas: float
-    A_throat: float
-    Ae_At: float   
-
 class gg: # Gas Generator
     stiffness = 0.25                    # Pa/Pa - guess
     fraction_guess = 0.05               # unitless - Fraction of total mass flow sent to the gas generator. Context: F1 = 0.030, J2 = 0.014 DO NOT CHANGE FROM 0.01 NOW
@@ -84,15 +67,6 @@ class gg: # Gas Generator
     c_tau_eff = 0.96                    # unitless - Thrust Coefficient Efficiency Factor
     orifice_number_fuel = 12            # 4 for impinging, 8 for showerhead film cooling on gg injector
     r_chamber = 0.025                   # m - radius of combustion chamber
-
-    pc: float
-    mdot: float
-    p_exit: float
-    Tt: float
-    c_star_ideal: float
-    isp_ideal: float
-    gamma: float
-    R: float
 
 class pump: # fluid is 'ox' or 'fuel'
     def __init__(self, fluid: str):
@@ -111,7 +85,7 @@ class pump: # fluid is 'ox' or 'fuel'
             self.hub_tip_ratio_inducer = 0.3         # unitless - ratio of hub radius to tip radius of inducer
         elif self.fluid == 'fuel':
             self.clocking = 1                        
-            self.shaft_speed = 25000 * math.pi / 30  
+            self.shaft_speed = 20000 * math.pi / 30  
             self.gear_efficiency = 1                             
             self.r_hub_impeller = 0.006               
             self.r_shaft = 0.005                               
@@ -125,8 +99,8 @@ class pump: # fluid is 'ox' or 'fuel'
         else:
             raise ValueError("fluid must be 'ox' or 'fuel'")
 
-class turbine:
-    r_pitchline = 0.096                 # m
+class turbine: 
+    r_pitchline = 0.115                 # m
     gear_ratio = 1                            # unitless - higher makes for a faster, smaller turbine. 1 = common shaft
     d_throat_nozzle = 0.127 * 0.0254          # m - diameter of each nozzle leading off the manifold - mdot_gg is a direct function of this and nozzle_number
     diverge_angle_gg = 15 * math.pi / 180     # rad - half-cone divergence angle of nozzle plate
@@ -135,11 +109,3 @@ class turbine:
     blade_length = 0.25 * 0.0254        # m
     tip_clearance = 0.0005                    # m
     radius_leading = 0.002                    # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
-
-    power: float
-    mdot: float
-    p_in: float
-    p_out: float
-    Tt_in: float
-    Tt_out: float
-    density_turbine: float

@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import numpy as np
 from scipy.special import fresnel
+from scipy.interpolate import CubicHermiteSpline
 import matplotlib.pyplot as plt
 
 from engine_state import engine, pump
@@ -40,8 +41,6 @@ def impellers(p: pump):
                                   c[:,0]*np.sin(eps_ds) + c[:,1]*np.cos(eps_ds)]).T  # [m,m] - rotate clothoid to desired outlet angle
     p.shroud_curve = (shroud_curve_raw + np.ones_like(shroud_curve_raw)*[-p.r_outlet_impeller, -shroud_curve_raw[0,1]])*[-1,1]  # [m,m] - translate the origin to the inlet central point, and flip from quadrant III to IV
     
-
-
     ds = np.linalg.norm(np.diff(p.shroud_curve, axis=0), axis=1)    # m - differential arc length along shroud curve
     s  = np.concatenate(([0.0], np.cumsum(ds)))                     # m - arc length along shroud curve
     s_shroud = s / s[-1]                                            # unitless - normalized arc length along shroud curve
@@ -49,30 +48,21 @@ def impellers(p: pump):
 
     A_inlet = np.pi*(p.r_inlet_impeller**2 - p.r_hub_impeller**2)      # m2 - annular flow area at impeller inlet
     A_outlet = 2*np.pi*p.r_outlet_impeller*w_outlet                       # m2 - annular flow area at impeller outlet
-    weight = 2*np.pi*p.r_outlet_impeller/np.tan(eps_ds) - np.pi*w_outlet  # unitless - weighting factor for area distribution along meanline
-    p.A_meanline = (A_outlet-A_inlet) * (2*(weight-1)*s_shroud**3 - 3*(weight-1)*s_shroud**2 + weight*s_shroud) + A_inlet # m2 - area distribution along meanline
+    
+    dA = np.array([s1 * np.tan(alpha1), s2 * np.tan(alpha2)])
+    
+    spline = CubicHermiteSpline([0.0, 1.0], [A_inlet, A_outlet], dA)
+    
+    # weight = 2*np.pi*p.r_outlet_impeller/np.tan(eps_ds) - np.pi*w_outlet  # unitless - weighting factor for area distribution along meanline
+    # p.A_meanline = (A_outlet-A_inlet) * (2*(weight-1)*s_shroud**3 - 3*(weight-1)*s_shroud**2 + weight*s_shroud) + A_inlet # m2 - area distribution along meanline
 
-    # tangents_shroud = np.empty_like(p.shroud_curve)
-    # tangents_shroud[1:-1] = p.shroud_curve[2:] - p.shroud_curve[:-2]
-    # tangents_shroud[0]    = p.shroud_curve[1] - p.shroud_curve[0]
-    # tangents_shroud[-1]   = p.shroud_curve[-1] - p.shroud_curve[-2]
     tangents_shroud = np.arctan2(np.gradient(p.shroud_curve[:, 1]), np.gradient(p.shroud_curve[:, 0])) # rad - approximate tangent vectors along shroud curve
     normals_shroud = np.column_stack([np.sin(tangents_shroud), -np.cos(tangents_shroud)]) # [m,m] - outward normal vectors along shroud curve
 
-    p.crosswise_meanline = (p.shroud_curve[:,0] - np.sqrt(p.shroud_curve[:,0]**2 - p.A_meanline*normals_shroud[:,0]/np.pi)) / normals_shroud[:,0] # m - crosswise distance between shroud and hub curves
+    p.crosswise_meanline = p.shroud_curve[:,0]/np.abs(normals_shroud[:,0]) * (1-np.sqrt(1-p.A_meanline*np.abs(normals_shroud[:,0])/np.pi/p.shroud_curve[:,0]**2))  # m - crosswise distance between shroud and hub curves
     p.hub_curve = p.shroud_curve + p.crosswise_meanline[:, None] * normals_shroud # m - (r,z) coordinates of hub curve from outlet to inlet
 
-    p.meanline_curve = 0.5 * (p.shroud_curve + p.hub_curve); # [m,m] - halfway between shroud and impeller
-
-    plt.plot(p.shroud_curve[:,0],   p.shroud_curve[:,1],   label="shroud")
-    plt.plot(p.hub_curve[:,0],      p.hub_curve[:,1],      label="hub")
-    plt.plot(p.meanline_curve[:,0], p.meanline_curve[:,1], label="meanline")
-
-    plt.grid(True)
-    plt.axis('equal')
-    plt.legend()
-    plt.show()
-
+    p.meanline_curve = 0.5 * (p.shroud_curve + p.hub_curve); # [m,m] - halfway between shroud and impeller hub curves
 
 
 

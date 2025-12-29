@@ -11,8 +11,8 @@ p_amb = 93900;          % Pa - ambient pressure at 2100 feet elevation
 T_amb = 293;			% K - Ambient Temperature - lowest temperature for which 75/25 ethanol is solvable by CoolProp
 
 % Overall Engine Performance Targets
-thrust_target = 15000;  % N - Thrust
-p_cc = 30E5;			% Pa - Chamber (Stagnation) Pressure
+thrust_target = 30000;  % N - Thrust
+p_cc = 50E5;			% Pa - Chamber (Stagnation) Pressure
 cc_stiffness = 0.25;	% Pa/Pa - guess   
 
 % Combustion Chamber (CC)
@@ -35,7 +35,7 @@ orifice_number_fuel = 12;   % 4 for impinging, 8 for showerhead film cooling on 
 
 % Pumps (first value is for ox pump, second for fuel pump)
 clocking = [1,-1];                      % 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-pump_shaft_speed = 30000*pi/30*[1,1];   % rad/s - angular velocity of the pump shaft, impeller, and inducers
+pump_shaft_speed = 20000*pi/30*[1,1];   % rad/s - angular velocity of the pump shaft, impeller, and inducers
 gear_efficiency = 1;                    % unitless - spur gears ~= 0.95; common shaft = 1
 r_hub = [0.006,0.006];	        % m
 r_shaft = 0.005;                        % m - portion of shaft that is stainless steel
@@ -48,7 +48,7 @@ clearance_radial_inducer = [2E-4,2E-4]; % m - radial clearance between inducer b
 surface_roughness = 10E-6;              % m - surface roughness of the additive material of the impellers
 
 % Turbine
-r_pitchline_rotor = 0.070;      % m
+r_pitchline_rotor = 0.120;      % m
 gear_ratio = 1;                 % unitless - higher makes for a faster, smaller turbine. 1 = common shaft
 d_throat_nozzle = 0.127*0.0254; % m - diameter of each nozzle leading off the manifold - mdot_gg is a direct function of this and nozzle_number
 diverge_angle_gg = 15*pi/180;   % rad - half-cone divergence angle of nozzle plate
@@ -97,15 +97,15 @@ shaft_shear_strength = shaft_tensile_strength/sqrt(3);  % Pa - conservative Tres
 
 thermals = false;
 thrust_chamber_assembly
-powerhead
+% powerhead
 
 %% Results
 
-thrust
-isp_ideal
-isp_real
-mdot_gg
-mdot_total
+% thrust
+% isp_ideal
+% isp_real
+% mdot_gg
+% mdot_total
 
 plots
 

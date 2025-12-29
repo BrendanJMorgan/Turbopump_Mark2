@@ -27,8 +27,8 @@ end
 
 %% Subfunctions
 while (abs(blockage(p)-old_blockage) > 0.01)
-    old_blockage = blockage(p)
-    old_blade_count = blade_count(p)
+    old_blockage = blockage(p);
+    old_blade_count = blade_count(p);
     impeller % uses blockage parameter
     blades % computes a new blockage parameter
 end
