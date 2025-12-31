@@ -89,7 +89,7 @@ def cc_geometry():
 
 
     #######################################################################################################
-    ### Flow Properties Along Combustion Chamber + Nozzle
+    ### Flow Properties Along Combustion Chamber and Nozzle
     #######################################################################################################
 
     n_chamber_end = int(np.round(l_chamber/tca.dx))

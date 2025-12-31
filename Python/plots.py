@@ -17,7 +17,7 @@ def plots():
     # -------------------------------------------------------------------------
     # TCA (thrust chamber assembly) Contours
     # -------------------------------------------------------------------------
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True, figsize=(8, 8))
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=True)
 
     # Top subplot - Chamber Contours
     p1, p2, = ax1.plot(tca.x, tca.r1, tca.x, tca.r2, label="Thrust Chamber Contours",color="brown")
@@ -71,63 +71,40 @@ def plots():
     #     ],
     #     loc="northeast",
     # )
-    plt.xlabel("Distance from Injector (m)")
+    # plt.xlabel("Distance from Injector (m)")
     # plt.ylabel("Temperature (K)")
     # plt.title("Engine Steady-State Temperatures")
 
     # -------------------------------------------------------------------------
     # Pump Impeller and Blades
     # -------------------------------------------------------------------------
-    plt.figure(3)
-    plt.clf()
-    plt.grid(True)
-    plt.axis("equal")
-    plt.title("Impeller and Shroud Contours (mm)")
+    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=False)
+    ax1.axis("equal")
+    ax1.set_title("Meriodional Plane Impeller Contours (mm)")
 
-    # --- Ox pump on the left (mirrored in x, cyan) ---
-    plt.plot(
-        -ox_pump.shroud_curve[:, 0] * 1000.0,
-        ox_pump.shroud_curve[:, 1] * 1000.0,
-        color="cyan",
-    )
-    plt.plot(
-        -ox_pump.hub_curve[:, 0] * 1000.0,
-        ox_pump.hub_curve[:, 1] * 1000.0,
-        color="cyan",
-    )
-    plt.plot(
-        -ox_pump.meanline_curve_bladed[:, 0] * 1000.0,
-        ox_pump.meanline_curve_bladed[:, 1] * 1000.0,
-        "--",
-        color="cyan",
-    )
+    # Ox pump on the left (mirrored in x, blue)
+    ax1.plot(-ox_pump.shroud_curve[:, 0] * 1000.0, ox_pump.shroud_curve[:, 1] * 1000.0, color="blue")
+    ax1.plot(-ox_pump.hub_curve[:, 0] * 1000.0, ox_pump.hub_curve[:, 1] * 1000.0, color="blue")
+    ax1.plot(-ox_pump.meanline_curve_bladed[:, 0] * 1000.0, ox_pump.meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
 
-    # --- Fuel pump on the right (red) ---
-    plt.plot(
-        fuel_pump.shroud_curve[:, 0] * 1000.0,
-        fuel_pump.shroud_curve[:, 1] * 1000.0,
-        color="red",
-    )
-    plt.plot(
-        fuel_pump.hub_curve[:, 0] * 1000.0,
-        fuel_pump.hub_curve[:, 1] * 1000.0,
-        color="red",
-    )
-    plt.plot(
-        fuel_pump.meanline_curve_bladed[:, 0] * 1000.0,
-        fuel_pump.meanline_curve_bladed[:, 1] * 1000.0,
-        "--",
-        color="red",
-    )
+    # Fuel pump on the right (red)
+    ax1.plot(fuel_pump.shroud_curve[:, 0] * 1000.0, fuel_pump.shroud_curve[:, 1] * 1000.0, color="red")
+    ax1.plot(fuel_pump.hub_curve[:, 0] * 1000.0, fuel_pump.hub_curve[:, 1] * 1000.0, color="red")
+    ax1.plot(fuel_pump.meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
+
+    ax1.plot([0.0, 0.0], ax1.get_ylim(), color="green")
+    ax1.plot(ax1.get_xlim(), [0.0, 0.0], color="green")
+    ax1.set_xlabel("z (mm)")
+    ax1.set_ylabel("r (mm)")
+    ax1.margins(y=0.2)
 
 
-    ax = plt.gca()
-    y_limits = ax.get_ylim()
-    x_limits = ax.get_xlim()
-    ax.plot([0.0, 0.0], y_limits, color="green")
-    ax.plot(x_limits, [0.0, 0.0], color="green")
-
-    
+    # Meanline Parameters below
+    ax2.plot(ox_pump.arc_meanline*1000, ox_pump.A_meanline*1E6, label="Ox Pump", color="blue")
+    ax2.plot(fuel_pump.arc_meanline*1000, fuel_pump.A_meanline*1E6, label="Fuel Pump", color="red")
+    ax2.set_xlabel("Meanline Arc Length (mm)")
+    ax2.set_ylabel("Annular Flow Area (mm2)")
+    plt.legend()
 
     # -------------------------------------------------------------------------
     # Impeller Blades / Volute
@@ -151,14 +128,14 @@ def plots():
             rotated_curve[:, 0] * 1000.0,
             rotated_curve[:, 1] * 1000.0,
             linewidth=2,
-            color="cyan",
+            color="blue",
         )
         plt.plot(np.nan, np.nan)
 
     # plt.plot(
     #     ox_pump.volute_curve[:, 0, 0] * 1000.0 - 150.0,
     #     ox_pump.volute_curve[:, 1, 0] * 1000.0,
-    #     color="cyan",
+    #     color="blue",
     # )
 
     # -------------------------------------------------------------------------

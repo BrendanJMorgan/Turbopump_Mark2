@@ -8,7 +8,7 @@ class engine: # For parameters that don't fit neatly within other categories
 
     g = 9.80665         # m/s2
 
-    thrust = 30000      # N - Thrust INCLUDE GG EXHAUST THRUST
+    thrust = 20000      # N - Thrust INCLUDE GG EXHAUST THRUST
     p_amb = 93900       # Pa - ambient pressure at 2100 feet elevation
     T_amb = 293         # K - Ambient Temperature
     
@@ -33,7 +33,7 @@ class tca: # Thrust Chamber Assembly
     diverge_angle = 15 * math.pi / 180        # rad - half-cone divergence angle of nozzle
     l_star = 1.5                                # m - characteristic chamber length
     # rc_throat = 0.025                         # m - radius of curvature around the throat
-    d2_chamber = 6.5*0.0254                        # m
+    d2_chamber = 5*0.0254                        # m
     wall_thickness = 0.006                         # m % SLANT VS VERTICAL THICKNESS
     d1_chamber = d2_chamber - 2 * wall_thickness   # m
     r1_chamber = d1_chamber / 2               # m
@@ -75,7 +75,7 @@ class pump: # fluid is 'ox' or 'fuel'
             self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
             self.shaft_speed = 20000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
             self.gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
-            self.r_hub_impeller = 0.006                       # m
+            self.r_hub_impeller = 0.010              # m
             self.r_shaft = 0.005                     # m - portion of shaft that is stainless steel
             self.impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
             self.NPSH_margin = 1.5                   # unitless - Margin of extra net positive suction head (NPSH) to be provided by inducers to prevent cavitation
@@ -87,7 +87,7 @@ class pump: # fluid is 'ox' or 'fuel'
             self.clocking = 1                        
             self.shaft_speed = 20000 * math.pi / 30  
             self.gear_efficiency = 1                             
-            self.r_hub_impeller = 0.006               
+            self.r_hub_impeller = 0.010               
             self.r_shaft = 0.005                               
             self.impeller_thickness = 0.003   
             self.eye_flow_coeff = 0.25           
