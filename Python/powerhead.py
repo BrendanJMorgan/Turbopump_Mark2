@@ -11,8 +11,8 @@ from rocketprops.rocket_prop import get_prop as rprop
 
 def powerhead():
     # Total Mass Flow Rate INITIAL GUESSES
-    gg.mdot = tca.mdot*gg.fraction_guess/(1-gg.fraction_guess)   # kg/s - mass flow rate through gas generator
-    gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))                                # kg/s - fuel mass flow rate through gas generator
+    gg.mdot = tca.mdot*gg.fraction_guess/(1-gg.fraction_guess)       # kg/s - mass flow rate through gas generator
+    gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))                             # kg/s - fuel mass flow rate through gas generator
     gg.mdot_ox   = gg.mdot*(gg.OF/(1+gg.OF))                         # kg/s - oxidizer mass flow rate through gas generator
     engine.mdot_fuel_total = tca.mdot_fuel + gg.mdot_fuel            # kg/s - total fuel mass flow rate
     engine.mdot_ox_total   = tca.mdot_ox   + gg.mdot_ox              # kg/s - total oxidizer mass flow rate
@@ -21,23 +21,31 @@ def powerhead():
     # Liquid Oxygen Pump
     ox_pump = pump(fluid='ox')
     ox_pump.p_out = tca.pc*(1+tca.stiffness) + 10*6894.76                    # Pa - add 10 psi of margin for plumbing losses
-    ox_pump.p_in  = engine.p_amb                                             # Pa   
-    ox_pump.T_in  = PropsSI("T","P",ox_pump.p_in,"Q",0,"Oxygen")             # K - tank temperature
-    ox_pump.density   = PropsSI("D","Q",0,"P",ox_pump.p_in,"Oxygen")         # kg/m3 - density of LOX at inlet
-    ox_pump.mdot  = engine.mdot_ox_total                                     # kg/s     
-    ox_pump.pvap_inlet = PropsSI("P","T",ox_pump.T_in,"Q",0,"Oxygen")        # Pa - vapor pressure of LOX at tank temperature
+    ox_pump.p_in  = ox_pump.tank.p                                           # Pa   
+    ox_pump.T_in  = rprop(engine.oxidizer).TdegRAtPsat(engine.p_amb/6894.76)/1.8     # K - tank temperature - assumes saturated propellant during fill
+    ox_pump.density = 1000*rprop(engine.oxidizer).SGLiqAtTdegR(ox_pump.T_in*1.8)      # kg/m3 - density of LOX at inlet
+    ox_pump.viscosity = 0.1*rprop(engine.oxidizer).ViscAtTdegR(ox_pump.T_in*1.8)     # Pa-s - viscosity of LOX at inlet
+    ox_pump.mdot = engine.mdot_ox_total                                      # kg/s     
+    ox_pump.pvap_inlet = 6894.76*rprop(engine.oxidizer).PvapAtTdegR(ox_pump.T_in*1.8)        # Pa - vapor pressure of LOX at tank temperature
   
-    pumps(ox_pump) 
-
     # Fuel Pump
     fuel_pump = pump(fluid='fuel')
-    fuel_pump.p_out = tca.p_cool[-1] + 10*6894.76                                       # Pa - add 10 psi of margin for plumbing losses
-    fuel_pump.p_in = engine.p_amb                                                       # Pa
+    fuel_pump.p_out = tca.p_cool[-1] # add margin for plumbing losses                   # Pa
+    fuel_pump.p_in = fuel_pump.tank.p                                                       # Pa
     fuel_pump.T_in = engine.T_amb                                                       # K - tank temperature    
-    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(engine.T_amb*1.8)      # kg/m3 - density of fuel at inlet
-    fuel_pump.mdot  = engine.mdot_fuel_total                                           # kg/s
-    fuel_pump.pvap_inlet = 6894.76*rprop('RP1').PvapAtTdegR(engine.T_amb*1.8) # Pa - vapor pressure of RP1 at tank temperature
+    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(fuel_pump.T_in*1.8)      # kg/m3 - density of fuel at inlet
+    fuel_pump.viscosity = 0.1*rprop(engine.fuelrp).ViscAtTdegR(fuel_pump.T_in*1.8)     # Pa-s - viscosity of fuel at inlet
+    fuel_pump.mdot  = engine.mdot_fuel_total                                            # kg/s
+    fuel_pump.pvap_inlet = 6894.76*rprop(engine.fuelrp).PvapAtTdegR(fuel_pump.T_in*1.8) # Pa - vapor pressure of RP1 at tank temperature
     
+    # Find Shaft Speed
+    pumps(ox_pump)
+    pumps(fuel_pump)
+
+    ox_pump.shaft_speed = fuel_pump.shaft_speed = np.min([ox_pump.shaft_speed, fuel_pump.shaft_speed]) # rad/s
+
+    # Actual Runs
+    pumps(ox_pump)
     pumps(fuel_pump)
 
     gg.pc = np.min([fuel_pump.p_out, ox_pump.p_out]) * gg.stiffness  # Pa - combustion chamber pressure guess
@@ -53,7 +61,6 @@ def powerhead():
         common_turbine.shaft_speed = ox_pump.shaft_speed  # rad/s - both pumps on same shaft
         turbines(common_turbine)
 
-        # return ox_pump, fuel_pump, common_turbine
     else:
         ox_turbine = turbine()
         fuel_turbine = turbine()
@@ -64,7 +71,6 @@ def powerhead():
         turbines(turbine=ox_turbine)
         turbines(turbine=fuel_turbine)
 
-        # return ox_pump, fuel_pump, ox_turbine, fuel_turbine
 
     powerhead.ox_pump = ox_pump
     powerhead.fuel_pump = fuel_pump

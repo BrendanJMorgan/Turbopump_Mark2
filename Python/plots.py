@@ -80,32 +80,36 @@ def plots():
     # -------------------------------------------------------------------------
     fig, (ax1, ax2) = plt.subplots(2, 1, sharex=False)
     ax1.axis("equal")
-    ax1.set_title("Meriodional Plane Impeller Contours (mm)")
+    ax1.set_title("Meridional Plane Impeller Contours (mm)")
 
     # Ox pump on the left (mirrored in x, blue)
-    ax1.plot(-ox_pump.shroud_curve[:, 0] * 1000.0, ox_pump.shroud_curve[:, 1] * 1000.0, color="blue")
-    ax1.plot(-ox_pump.hub_curve[:, 0] * 1000.0, ox_pump.hub_curve[:, 1] * 1000.0, color="blue")
-    ax1.plot(-ox_pump.meanline_curve_bladed[:, 0] * 1000.0, ox_pump.meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
+    ax1.plot(-ox_pump.impeller[0].shroud_curve[:, 0] * 1000.0, ox_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="blue")
+    ax1.plot(-ox_pump.impeller[0].hub_curve[:, 0] * 1000.0, ox_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="blue")
+    ax1.plot(-ox_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, ox_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
 
     # Fuel pump on the right (red)
-    ax1.plot(fuel_pump.shroud_curve[:, 0] * 1000.0, fuel_pump.shroud_curve[:, 1] * 1000.0, color="red")
-    ax1.plot(fuel_pump.hub_curve[:, 0] * 1000.0, fuel_pump.hub_curve[:, 1] * 1000.0, color="red")
-    ax1.plot(fuel_pump.meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
+    ax1.plot(fuel_pump.impeller[0].shroud_curve[:, 0] * 1000.0, fuel_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="red")
+    ax1.plot(fuel_pump.impeller[0].hub_curve[:, 0] * 1000.0, fuel_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="red")
+    ax1.plot(fuel_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
 
     ax1.plot([0.0, 0.0], ax1.get_ylim(), color="green")
     ax1.plot(ax1.get_xlim(), [0.0, 0.0], color="green")
     ax1.set_xlabel("z (mm)")
     ax1.set_ylabel("r (mm)")
     ax1.margins(y=0.2)
-
-
+ 
     # Meanline Parameters below
-    ax2.plot(ox_pump.arc_meanline*1000, ox_pump.A_meanline*1E6, label="Ox Pump", color="blue")
-    ax2.plot(fuel_pump.arc_meanline*1000, fuel_pump.A_meanline*1E6, label="Fuel Pump", color="red")
+    ax2_twin = ax2.twinx()
+    p1, = ax2.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].area_meanline*1E6, label="Ox Pump", color="blue")
+    p2, = ax2.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].area_meanline*1E6, label="Fuel Pump", color="red")
+    p3, = ax2_twin.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].blockage, label="Ox Pump Blockage", color="blue", linestyle="--")
+    p4, = ax2_twin.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].blockage, label="Fuel Pump Blockage", color="red", linestyle="--")
     ax2.set_xlabel("Meanline Arc Length (mm)")
     ax2.set_ylabel("Annular Flow Area (mm2)")
-    plt.legend()
-
+    ax2_twin.set_ylabel("Blockage")
+    ax2.legend(handles=[p1, p2], labelcolor="linecolor")
+    plt.tight_layout()
+    
     # -------------------------------------------------------------------------
     # Impeller Blades / Volute
     # -------------------------------------------------------------------------
@@ -115,13 +119,11 @@ def plots():
     plt.axis("equal")
     plt.title("Impellers, Volutes, and Rotor (mm)")
 
-    # -------------------------------------------------------------------------
     # Ox Pump Contours
-    # -------------------------------------------------------------------------
-    delta_angle = ox_pump.clocking * 2.0 * np.pi / ox_pump.blade_count  # Calculate the angle to rotate each blade
+    delta_angle = ox_pump.clocking * 2.0 * np.pi / ox_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
 
-    for i in range(ox_pump.blade_count):  # for i = 0:(blade_count(1)-1)
-        c = ox_pump.blade_curve
+    for i in range(ox_pump.impeller[0].blade_count):  # for i = 0:(blade_count(1)-1)
+        c = ox_pump.impeller[0].blade_curve
         rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
                                 c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
         plt.plot(
@@ -138,13 +140,11 @@ def plots():
     #     color="blue",
     # )
 
-    # -------------------------------------------------------------------------
     # Fuel Pump Contours
-    # -------------------------------------------------------------------------
-    delta_angle = fuel_pump.clocking * 2.0 * np.pi / fuel_pump.blade_count  # Calculate the angle to rotate each blade
+    delta_angle = fuel_pump.clocking * 2.0 * np.pi / fuel_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
 
-    for i in range(fuel_pump.blade_count):
-        c = fuel_pump.blade_curve
+    for i in range(fuel_pump.impeller[0].blade_count):
+        c = fuel_pump.impeller[0].blade_curve
         rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
                                 c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
         plt.plot(
@@ -187,9 +187,9 @@ def plots():
         color="#ffA500",
     )
 
-    text_str = f"GG = {gg.mdot:0.2g} kg/s, {gg.mdot*1790:0.0f} SCFM ({gg.mdot/engine.mdot*100:.2g}%)"
+    text_str = f"Shaft Speed = {turbine.shaft_speed*30/np.pi:0.2f} rpm\nGG = {gg.mdot:0.2g} kg/s, {gg.mdot*1790:0.0f} SCFM ({gg.mdot/engine.mdot*100:.2g}%)"
 
-    ax.text(0.2,0.5,text_str,transform=ax.transAxes,bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+    ax.text(0.2,0.1,text_str,transform=ax.transAxes,bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
 
     # -------------------------------------------------------------------------
     # Turbine Blades

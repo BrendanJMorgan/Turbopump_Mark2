@@ -36,8 +36,8 @@ def combustion_chamber():
 
     # Mass Flow Rates ----------------------------------------------------------------------------------------------
     tca.Tt = py_cea.prtout.ttt[0]  # K - stagnation temperature at chamber
-    tca.mdot = tca.A_throat / (np.sqrt(tca.Tt)/tca.pc * np.sqrt(tca.R_gas/tca.gamma_avg_nozzle) * 
-                          ((tca.gamma_avg_nozzle+1)/2)**((tca.gamma_avg_nozzle+1)/(2*(tca.gamma_avg_nozzle-1)))) # m2 - throat area
+    tca.mdot = engine.thrust / (tca.c_star * tca.c_tau)  # kg/s - Mass Flow Rate
+    # tca.mdot = tca.A_throat*tca.pc * np.sqrt(tca.gamma_avg_nozzle/tca.R_gas/tca.Tt) * (0.5*(tca.gamma_avg_nozzle+1))**(0.5*(1+tca.gamma_avg_nozzle)/(1-tca.gamma_avg_nozzle)) # m2 - throat area
     tca.mdot_fuel = tca.mdot*(1/(1+tca.OF))            # kg/s - Fuel Mass Flow Rate
     tca.mdot_ox = tca.mdot*(tca.OF/(1+tca.OF))   # kg/s - Oxidizer Mass Flow Rate
 

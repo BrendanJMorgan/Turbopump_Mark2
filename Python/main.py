@@ -16,7 +16,7 @@ def main():
     powerhead() # contains submodules pump, gas_generator, turbine
     isp_real = engine.thrust/(tca.mdot+gg.mdot)/engine.g
     plots()
-
+    print()
     # # Results (match MATLAB names)
     # thrust = ph_results.get("thrust", np.nan) 
     # isp_ideal = ph_results.get("isp_ideal", np.nan)

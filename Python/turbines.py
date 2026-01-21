@@ -38,9 +38,10 @@ def turbines(t: turbine):
     # One stage impulse rotor - does not work for multistage and/or velocity driven turbines
     t.v_pitchline = t.r_pitchline*t.shaft_speed # m/s - tangential rotor speed at pitchline
 
-
     isentropic_v_ratio = t.v_pitchline/t.v_spouting_norm                      # unitless - "A single-row impulse stage delivers best performance at velocity ratios between 0.30 and 0.40"
     v_axial = np.sqrt(t.v_spouting_norm**2 - 4*t.v_pitchline**2)          # m/s
+    if v_axial is np.nan or v_axial <= 0:
+        raise ValueError(f"Spouting velocity of {t.v_spouting_norm:0.2f} m/s is too low for the given shaft speed of {t.shaft_speed*30/np.pi:0.2f} rpm and radius of {t.r_pitchline*1000:0.1f} mm\n")
     v_spouting = np.array([2*t.v_pitchline, v_axial])                 # [m/s, m/s] - [tangential, axial]
     angle_nozzle = np.atan(v_spouting[0]/v_spouting[1])                         # rad
     w_in = np.array([t.v_pitchline, v_axial])             # m/s
@@ -54,9 +55,9 @@ def turbines(t: turbine):
     A_exit = t.A_throat_cum * ( (2 + (gg.gamma - 1)*t.mach_spouting**2 ) / (gg.gamma + 1) ) ** ((gg.gamma + 1)/(2*(gg.gamma - 1))) / t.mach_spouting # m2 - cumulative area of all blade gaps in rotor
 
     if np.pi/2-t.blade_angle < 30*np.pi/180:
-        raise ValueError(f"Rotor blade angle of {t.blade_angle*180/np.pi} deg is too agressive (Zweifel has no correlation)\n")
+        raise ValueError(f"Rotor blade angle of {t.blade_angle*180/np.pi} deg is too aggressive (Zweifel has no correlation)\n")
     elif np.pi/2-t.blade_angle > 80*np.pi/180:
-        raise ValueError(f"Rotor blade angle of {t.blade_angle*180/np.pi} deg is too shallow (Zweifel has no correlation)\n")
+        raise ValueError(f"Rotor blade angle of {t.blade_angle*180/np.pi} deg is too shallow (Zweifel has no correlation)\nShaft Speed: {round(t.shaft_speed*30/np.pi,2)} rpm")
     else:
         t.pitch_chord_ratio = CubicSpline(pitch_chord_zweifel[:,0], pitch_chord_zweifel[:,1])(np.pi/2-t.blade_angle*180/np.pi) # unitless - NASA Turbines 1974, figure 26, Zweifel impulse blades curve
 
@@ -92,8 +93,8 @@ def turbines(t: turbine):
 
     turbine_efficiency = turbine_efficiency_partial*clearance_loss_coeff
 
-    power_turbine = t.shaft_power/turbine_efficiency    # W - ideal power needed to meet pump requirements
-    mdot_gg = 0.5 * power_turbine / (t.shaft_speed*t.r_pitchline)**2 # kg/s - mass flow rate through the gg / manifold / rotor - this is actually equation 10b simplified with impulse rotor assumptions
+    t.power = t.shaft_power/turbine_efficiency    # W - ideal power needed to meet pump requirements
+    mdot_gg = 0.5 * t.power / (t.shaft_speed*t.r_pitchline)**2 # kg/s - mass flow rate through the gg / manifold / rotor - this is actually equation 10b simplified with impulse rotor assumptions
     torque_turbine = t.shaft_power / t.shaft_speed      # N*m
 
     # Blade Depth

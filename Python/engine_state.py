@@ -8,7 +8,7 @@ class engine: # For parameters that don't fit neatly within other categories
 
     g = 9.80665         # m/s2
 
-    thrust = 20000      # N - Thrust INCLUDE GG EXHAUST THRUST
+    thrust = 25000      # N - Thrust INCLUDE GG EXHAUST THRUST
     p_amb = 93900       # Pa - ambient pressure at 2100 feet elevation
     T_amb = 293         # K - Ambient Temperature
     
@@ -33,7 +33,7 @@ class tca: # Thrust Chamber Assembly
     diverge_angle = 15 * math.pi / 180        # rad - half-cone divergence angle of nozzle
     l_star = 1.5                                # m - characteristic chamber length
     # rc_throat = 0.025                         # m - radius of curvature around the throat
-    d2_chamber = 5*0.0254                        # m
+    d2_chamber = 5.5*0.0254                        # m
     wall_thickness = 0.006                         # m % SLANT VS VERTICAL THICKNESS
     d1_chamber = d2_chamber - 2 * wall_thickness   # m
     r1_chamber = d1_chamber / 2               # m
@@ -51,12 +51,6 @@ class tca: # Thrust Chamber Assembly
     film_fraction = 0.03                      # unitless - Fraction of the fuel mass flow dedicated to film cooling orifices - typically 3%-10% (Huzel and Huang)
     v_injection = 10                          # m/s - combustion gas must have some initial velocity for injector film cooling to work mathematically
 
-    # Properties
-    k_wall = 253                              # W/m-K - thermal conductivity of aluminum (at 571 C)
-    FSu_design = 2.0                          # Minimum design factor of safety, ultimate
-    shaft_tensile_strength = 510E6            # Pa - stainless steel 304, ultimate
-    shaft_shear_strength = shaft_tensile_strength / math.sqrt(3)  # Pa - conservative Tresca criterion
-
     compute_thermals = False                  # Whether to run regen thermal balance (tends to increase runtime significantly)
 
 class gg: # Gas Generator
@@ -68,39 +62,84 @@ class gg: # Gas Generator
     orifice_number_fuel = 12            # 4 for impinging, 8 for showerhead film cooling on gg injector
     r_chamber = 0.025                   # m - radius of combustion chamber
 
-class pump: # fluid is 'ox' or 'fuel'
+class pump:
+    def __init__(self, fluid: str):
+        self.fluid = fluid
+        self.surface_roughness = 10E-6
+        self.shaft_speed = None
+
+        if self.fluid == 'ox':
+            self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
+            self.n_stages = 1
+            self.inducer = inducer(fluid=self.fluid)
+            self.impeller = [impeller(stage=i, fluid=self.fluid) for i in range(self.n_stages)]
+            self.volute = volute(fluid=self.fluid)
+            self.tank = tank(fluid=self.fluid)
+        elif self.fluid == 'fuel':
+            self.clocking = 1                        
+            self.n_stages = 1
+            self.inducer = inducer(fluid=self.fluid)
+            self.impeller = [impeller(stage=i, fluid=self.fluid) for i in range(self.n_stages)]
+            self.volute = volute(fluid=self.fluid)
+            self.tank = tank(fluid=self.fluid)                        
+        else:
+            raise ValueError("fluid must be 'ox' or 'fuel'")
+        
+class inducer:
     def __init__(self, fluid: str):
         self.fluid = fluid
         if self.fluid == 'ox':
-            self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-            self.shaft_speed = 20000*math.pi/30      # rad/s - angular velocity of the pump shaft, impeller, and inducers
-            self.gear_efficiency = 1                 # unitless - spur gears ~= 0.95; common shaft = 1
-            self.r_hub_impeller = 0.010              # m
-            self.r_shaft = 0.005                     # m - portion of shaft that is stainless steel
-            self.impeller_thickness = 0.003          # m - thickness of impeller at the exit point, not including blades
-            self.NPSH_margin = 1.5                   # unitless - Margin of extra net positive suction head (NPSH) to be provided by inducers to prevent cavitation
-            self.blade_number_inducer = 4            # unitless - 3 or 4 is considered good
-            self.clearance_radial_inducer = 2E-4     # m - radial clearance between inducer blades and housing cavity
-            self.surface_roughness = 10E-6           # m - surface roughness of the additive material of the impellers
-            self.hub_tip_ratio_inducer = 0.3         # unitless - ratio of hub radius to tip radius of inducer
+            self.flow_coeff = 0.1           # unitless
+            self.blade_number = 3           # unitless
+            self.clearance_radial = 2E-4    # m
+            self.hub_tip_ratio = 0.3        # unitless - ratio of hub radius to tip radius of inducer
+            self.suction_margin = 1.5       # unitless - Margin of extra net positive suction head (NPSH)
+            self.flow_margin = 1.2          # unitless - margin on flow rate to ensure inducer is not undersized
+            self.blade_thickness = 0.001    # m - thickness of inducer blades
         elif self.fluid == 'fuel':
-            self.clocking = 1                        
-            self.shaft_speed = 20000 * math.pi / 30  
-            self.gear_efficiency = 1                             
-            self.r_hub_impeller = 0.010               
-            self.r_shaft = 0.005                               
-            self.impeller_thickness = 0.003   
-            self.eye_flow_coeff = 0.25           
-            self.NPSH_margin = 1.5             
-            self.blade_number_inducer = 4          
-            self.clearance_radial_inducer = 2E-4  
+            self.flow_coeff = 0.1           
+            self.blade_number = 3
+            self.clearance_radial = 2E-4
+            self.hub_tip_ratio = 0.3
+            self.suction_margin = 1.5
+            self.flow_margin = 1.2      
+            self.blade_thickness = 0.001  
+class impeller:
+    def __init__(self, stage: int, fluid: str):
+        self.fluid = fluid
+        if self.fluid == 'ox':
+            self.stage = stage
+            self.hub_in_angle = -90 * np.pi / 180
+            self.hub_out_angle = 0 * np.pi / 180
+            self.shroud_in_angle = -90 * np.pi / 180
+            self.shroud_out_angle = -0 * np.pi / 180
+            self.thickness = 0.003
+            self.NPSH_required = 100
+            self.suction_margin = 1.5
+            self.flow_coeff = 0.1
             self.surface_roughness = 10E-6
-            self.hub_tip_ratio_inducer = 0.3         # unitless - ratio of hub radius to tip radius of inducer
-        else:
-            raise ValueError("fluid must be 'ox' or 'fuel'")
+        elif self.fluid == 'fuel':
+            self.stage = stage
+            self.hub_in_angle = -90 * np.pi / 180
+            self.hub_out_angle = 0 * np.pi / 180
+            self.shroud_in_angle = -90 * np.pi / 180
+            self.shroud_out_angle = -0 * np.pi / 180
+            self.thickness = 0.003
+            self.NPSH_required = 100
+            self.suction_margin = 1.5
+            self.flow_coeff = 0.1
+            self.surface_roughness = 10E-6
+
+class volute:
+    def __init__(self, fluid: str):
+        self.fluid = fluid
+        if self.fluid == 'ox':
+            self.dummy = 1.0               
+        elif self.fluid == 'fuel':
+            self.dummy = 1.0                     
 
 class turbine: 
-    r_pitchline = 0.115                 # m
+    r_pitchline = 0.08                # m
     gear_ratio = 1                            # unitless - higher makes for a faster, smaller turbine. 1 = common shaft
     d_throat_nozzle = 0.127 * 0.0254          # m - diameter of each nozzle leading off the manifold - mdot_gg is a direct function of this and nozzle_number
     diverge_angle_gg = 15 * math.pi / 180     # rad - half-cone divergence angle of nozzle plate
@@ -109,3 +148,13 @@ class turbine:
     blade_length = 0.25 * 0.0254        # m
     tip_clearance = 0.0005                    # m
     radius_leading = 0.002                    # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
+
+class tank:
+    def __init__(self, fluid: str):
+        self.fluid = fluid
+        if self.fluid == 'ox':
+            self.p = 1.5E5                    # Pa
+            self.T = 90                     # K
+        elif self.fluid == 'fuel':
+            self.p = 0.5E5                   # Pa
+            self.T = 293                    # K
