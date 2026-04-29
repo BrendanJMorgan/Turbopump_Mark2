@@ -95,7 +95,7 @@ shaft_shear_strength = shaft_tensile_strength/sqrt(3);  % Pa - conservative Tres
 
 %% Runs - these both have several (nested) subfunctions
 
-thermals = false;
+thermals = true;
 thrust_chamber_assembly
 % powerhead
 

@@ -22,22 +22,18 @@ def combustion_chamber():
     tca.R_gas = 8.3145 / (py_cea.prtout.wm[2])  # J/kg-K - Specific Gas Constant (throat)
 
     # Performance Parameters -----------------------------------------------------------------------------------
-    # [tca.isp_ideal, tca.c_star_ideal, tca.Tt] = tca.cea_cc.get_IvacCstrTc(Pc=tca.pc, MR=tca.OF, eps=tca.Ae_At) # s, m/s, K - specific impulse, characteristic velocity, chamber temperature
-
-    lambda_cone = 0.5*(1+np.cos(tca.diverge_angle))  # Divergence correction factor for conical nozzle
-
-    tca.c_star = tca.c_star_ideal * tca.c_star_eff     # m/s - Characteristic Velocity
+    lambda_cone = 0.5*(1+np.cos(tca.diverge_angle))         # Divergence correction factor for conical nozzle
+    tca.c_star = tca.c_star_ideal * tca.c_star_eff          # m/s - Characteristic Velocity
     c_tau_ideal = np.sqrt( (2*tca.gamma_avg_nozzle**2/(tca.gamma_avg_nozzle-1) * (2/(tca.gamma_avg_nozzle+1))**((tca.gamma_avg_nozzle+1)/(tca.gamma_avg_nozzle-1)) * \
                     (1-(tca.p_exit/tca.pc)**((tca.gamma_avg_nozzle-1)/tca.gamma_avg_nozzle) ) ) ) + tca.Ae_At*(tca.p_exit-engine.p_amb)/tca.pc # Ideal Thrust Coefficient
-    tca.c_tau = c_tau_ideal*lambda_cone*tca.c_tau_eff                # Thrust Coefficient
-    tca.A_throat = engine.thrust / (tca.pc * tca.c_tau)  # m2 - Throat Area
+    tca.c_tau = c_tau_ideal*lambda_cone*tca.c_tau_eff       # Thrust Coefficient
+    tca.A_throat = engine.thrust / (tca.pc * tca.c_tau)     # m2 - Throat Area
 
     tca.v_exhaust = tca.c_star * tca.c_tau  # m/s - Exhaust Velocity
 
     # Mass Flow Rates ----------------------------------------------------------------------------------------------
-    tca.Tt = py_cea.prtout.ttt[0]  # K - stagnation temperature at chamber
-    tca.mdot = engine.thrust / (tca.c_star * tca.c_tau)  # kg/s - Mass Flow Rate
-    # tca.mdot = tca.A_throat*tca.pc * np.sqrt(tca.gamma_avg_nozzle/tca.R_gas/tca.Tt) * (0.5*(tca.gamma_avg_nozzle+1))**(0.5*(1+tca.gamma_avg_nozzle)/(1-tca.gamma_avg_nozzle)) # m2 - throat area
-    tca.mdot_fuel = tca.mdot*(1/(1+tca.OF))            # kg/s - Fuel Mass Flow Rate
-    tca.mdot_ox = tca.mdot*(tca.OF/(1+tca.OF))   # kg/s - Oxidizer Mass Flow Rate
+    tca.Tt = py_cea.prtout.ttt[0]                       # K - stagnation temperature at chamber
+    tca.mdot = engine.thrust / (tca.c_star * tca.c_tau) # kg/s - Mass Flow Rate
+    tca.mdot_fuel = tca.mdot*(1/(1+tca.OF))             # kg/s - Fuel Mass Flow Rate
+    tca.mdot_ox = tca.mdot*(tca.OF/(1+tca.OF))          # kg/s - Oxidizer Mass Flow Rate
 

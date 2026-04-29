@@ -10,9 +10,14 @@ from powerhead import powerhead
 def plots():
     plt.close('all')
 
-    ox_pump = powerhead.ox_pump
-    fuel_pump = powerhead.fuel_pump
-    turbine = powerhead.turbine
+    # ox_pump = powerhead.ox_pump
+    # fuel_pump = powerhead.fuel_pump
+    # turbine = powerhead.turbine
+
+    gas = tca.combustion_gas
+    jacket = tca.regenerative_jacket
+    cool = tca.regenerative_coolant
+    film = tca.film_coolant
 
     # -------------------------------------------------------------------------
     # TCA (thrust chamber assembly) Contours
@@ -31,8 +36,8 @@ def plots():
     # Bottom subplot - Coolant Properties (twin axis)
     ax2_twin = ax2.twinx()
 
-    p1, = ax2.plot(tca.x, tca.p_cool / 1e5, label="Regen Pressure", color="blue")
-    p2, = ax2_twin.plot(tca.x, tca.v_cool, label="Regen Velocity", color="red")
+    p1, = ax2.plot(tca.x, tca.regenerative_coolant.p / 1e5, label="Regen Pressure", color="blue")
+    p2, = ax2_twin.plot(tca.x, tca.regenerative_coolant.velocity, label="Regen Velocity", color="red")
     ax2.set_xlabel("Distance from Injector (m)")
     ax2.set_ylabel("Pressure (bar)")
     ax2_twin.set_ylabel("Velocity (m/s)")
@@ -47,219 +52,251 @@ def plots():
     # TCA Temperatures
     # -------------------------------------------------------------------------
 
-    # plt.plot(
-    #     tca.x, tca.T_wall_cold,
-    #     tca.x, tca.T_wall_hot,
-    #     tca.x, tca.T_cool,
-    #     tca.x, tca.T_film,
-    #     tca.x, tca.T_free,
-    #     tca.x, tca.T_ab,
-    #     tca.x, tca.T_recovery,
-    #     tca.x, tca.T_ref,
-    # )
-    # plt.axhline(0.0)
-    # plt.legend(
-    #     [
-    #         "Cold Wall",
-    #         "Hot Wall",
-    #         "Regen Coolant",
-    #         "Film Coolant",
-    #         "Free-Stream Gas",
-    #         "Adiabatic",
-    #         "Recovery",
-    #         "Gas Property Reference",
-    #     ],
-    #     loc="northeast",
-    # )
-    # plt.xlabel("Distance from Injector (m)")
-    # plt.ylabel("Temperature (K)")
-    # plt.title("Engine Steady-State Temperatures")
+    fig, (ax3, ax4) = plt.subplots(2, 1, sharex=True)
 
-    # -------------------------------------------------------------------------
-    # Pump Impeller and Blades
-    # -------------------------------------------------------------------------
-    fig, (ax1, ax2) = plt.subplots(2, 1, sharex=False)
-    ax1.axis("equal")
-    ax1.set_title("Meridional Plane Impeller Contours (mm)")
+    # Top plot - all 8 temperatures
+    ax3.plot(tca.x, jacket.T_cold)
+    ax3.plot(tca.x, jacket.T_hot)
+    ax3.plot(tca.x, cool.T)
+    ax3.plot(tca.x, film.liquid.T)
+    ax3.plot(tca.x, film.gas.T)
+    ax3.plot(tca.x, gas.T_free)
+    ax3.plot(tca.x, gas.T_adiabatic_wall)
+    ax3.plot(tca.x, gas.T_boundary)
+    ax3.legend([
+        "Cold Wall",
+        "Hot Wall",
+        "Regen Coolant",
+        "Film Liquid",
+        "Film Gas",
+        "Free-Stream Gas",
+        "Adiabatic Wall Gas",
+        "Boundary Layer Reference",
+    ])
+    ax3.set_ylabel("Temperature (K)")
+    ax3.set_title("Engine Steady-State Temperatures")
+    ax3.set_ylim(0, 1.2*tca.Tt)
 
-    # Ox pump on the left (mirrored in x, blue)
-    ax1.plot(-ox_pump.impeller[0].shroud_curve[:, 0] * 1000.0, ox_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="blue")
-    ax1.plot(-ox_pump.impeller[0].hub_curve[:, 0] * 1000.0, ox_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="blue")
-    ax1.plot(-ox_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, ox_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
+    # Bottom plot - first 5 temperatures only
+    ax4.plot(tca.x, jacket.T_cold)
+    ax4.plot(tca.x, jacket.T_hot)
+    ax4.plot(tca.x, cool.T)
+    ax4.plot(tca.x, film.liquid.T)
+    ax4.plot(tca.x, film.gas.T, '--')
+    ax4.legend([
+        "Cold Wall",
+        "Hot Wall",
+        "Regen Coolant",
+        "Film Liquid",
+        "Film Gas",
+    ])
+    ax4.set_xlabel("Distance from Injector (m)")
+    ax4.set_ylabel("Temperature (K)")
+    ax4.set_title("Wall & Film Temperatures")
 
-    # Fuel pump on the right (red)
-    ax1.plot(fuel_pump.impeller[0].shroud_curve[:, 0] * 1000.0, fuel_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="red")
-    ax1.plot(fuel_pump.impeller[0].hub_curve[:, 0] * 1000.0, fuel_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="red")
-    ax1.plot(fuel_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
-
-    ax1.plot([0.0, 0.0], ax1.get_ylim(), color="green")
-    ax1.plot(ax1.get_xlim(), [0.0, 0.0], color="green")
-    ax1.set_xlabel("z (mm)")
-    ax1.set_ylabel("r (mm)")
-    ax1.margins(y=0.2)
- 
-    # Meanline Parameters below
-    ax2_twin = ax2.twinx()
-    p1, = ax2.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].area_meanline*1E6, label="Ox Pump", color="blue")
-    p2, = ax2.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].area_meanline*1E6, label="Fuel Pump", color="red")
-    p3, = ax2_twin.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].blockage, label="Ox Pump Blockage", color="blue", linestyle="--")
-    p4, = ax2_twin.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].blockage, label="Fuel Pump Blockage", color="red", linestyle="--")
-    ax2.set_xlabel("Meanline Arc Length (mm)")
-    ax2.set_ylabel("Annular Flow Area (mm2)")
-    ax2_twin.set_ylabel("Blockage")
-    ax2.legend(handles=[p1, p2], labelcolor="linecolor")
     plt.tight_layout()
+
+    # fig, ax4 = plt.subplots()
+    # ax4.plot(tca.x, cool.h)
+    # ax4.plot(tca.x, 10*cool.nusselt)
+    # ax4.plot(tca.x, cool.Re)
+    # ax4.set_xlabel("Distance from Injector (m)")
+    # ax4.legend(["cool.h", "10*cool.nusselt","cool.Re"], labelcolor="linecolor")
+
+    # fig, ax5 = plt.subplots()
+    # ax5.plot(tca.x, cool.dp1)
+    # ax5.plot(tca.x, cool.dp2)
+    # # ax5.plot(tca.x, cool.dp3)
+    # ax5.plot(tca.x, jacket.n_pipe/10)
+    # ax5.plot(tca.x, jacket.d_hydraulic*1000)
+    # ax5.set_xlabel("Distance from Injector (m)")
+    # ax5.legend(["cool.dp1", "cool.dp2", "cool.dp3", "jacket.n_pipe/10", "jacket.d_hydraulic* 1000"], labelcolor="linecolor")
+
+    # # -------------------------------------------------------------------------
+    # # Pump Impeller and Blades
+    # # -------------------------------------------------------------------------
+    # fig, (ax1, ax2) = plt.subplots(2, 1, sharex=False)
+    # ax1.axis("equal")
+    # ax1.set_title("Meridional Plane Impeller Contours (mm)")
+
+    # # Ox pump on the left (mirrored in x, blue)
+    # ax1.plot(-ox_pump.impeller[0].shroud_curve[:, 0] * 1000.0, ox_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="blue")
+    # ax1.plot(-ox_pump.impeller[0].hub_curve[:, 0] * 1000.0, ox_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="blue")
+    # ax1.plot(-ox_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, ox_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
+
+    # # Fuel pump on the right (red)
+    # ax1.plot(fuel_pump.impeller[0].shroud_curve[:, 0] * 1000.0, fuel_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="red")
+    # ax1.plot(fuel_pump.impeller[0].hub_curve[:, 0] * 1000.0, fuel_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="red")
+    # ax1.plot(fuel_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
+
+    # ax1.plot([0.0, 0.0], ax1.get_ylim(), color="green")
+    # ax1.plot(ax1.get_xlim(), [0.0, 0.0], color="green")
+    # ax1.set_xlabel("z (mm)")
+    # ax1.set_ylabel("r (mm)")
+    # ax1.margins(y=0.2)
+ 
+    # # Meanline Parameters below
+    # ax2_twin = ax2.twinx()
+    # p1, = ax2.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].area_meanline*1E6, label="Ox Pump", color="blue")
+    # p2, = ax2.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].area_meanline*1E6, label="Fuel Pump", color="red")
+    # p3, = ax2_twin.plot(ox_pump.impeller[0].arc_meanline*1000, ox_pump.impeller[0].blockage, label="Ox Pump Blockage", color="blue", linestyle="--")
+    # p4, = ax2_twin.plot(fuel_pump.impeller[0].arc_meanline*1000, fuel_pump.impeller[0].blockage, label="Fuel Pump Blockage", color="red", linestyle="--")
+    # ax2.set_xlabel("Meanline Arc Length (mm)")
+    # ax2.set_ylabel("Annular Flow Area (mm2)")
+    # ax2_twin.set_ylabel("Blockage")
+    # ax2.legend(handles=[p1, p2], labelcolor="linecolor")
+    # plt.tight_layout()
     
-    # -------------------------------------------------------------------------
-    # Impeller Blades / Volute
-    # -------------------------------------------------------------------------
-    plt.figure(4)
-    plt.clf()
-    plt.grid(True)
-    plt.axis("equal")
-    plt.title("Impellers, Volutes, and Rotor (mm)")
+    # # -------------------------------------------------------------------------
+    # # Impeller Blades / Volute
+    # # -------------------------------------------------------------------------
+    # plt.figure(4)
+    # plt.clf()
+    # plt.grid(True)
+    # plt.axis("equal")
+    # plt.title("Impellers, Volutes, and Rotor (mm)")
 
-    # Ox Pump Contours
-    delta_angle = ox_pump.clocking * 2.0 * np.pi / ox_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
+    # # Ox Pump Contours
+    # delta_angle = ox_pump.clocking * 2.0 * np.pi / ox_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
 
-    for i in range(ox_pump.impeller[0].blade_count):  # for i = 0:(blade_count(1)-1)
-        c = ox_pump.impeller[0].blade_curve
-        rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
-                                c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
-        plt.plot(
-            rotated_curve[:, 0] * 1000.0,
-            rotated_curve[:, 1] * 1000.0,
-            linewidth=2,
-            color="blue",
-        )
-        plt.plot(np.nan, np.nan)
+    # for i in range(ox_pump.impeller[0].blade_count):  # for i = 0:(blade_count(1)-1)
+    #     c = ox_pump.impeller[0].blade_curve
+    #     rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
+    #                             c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
+    #     plt.plot(
+    #         rotated_curve[:, 0] * 1000.0,
+    #         rotated_curve[:, 1] * 1000.0,
+    #         linewidth=2,
+    #         color="blue",
+    #     )
+    #     plt.plot(np.nan, np.nan)
 
-    # plt.plot(
-    #     ox_pump.volute_curve[:, 0, 0] * 1000.0 - 150.0,
-    #     ox_pump.volute_curve[:, 1, 0] * 1000.0,
-    #     color="blue",
+    # # plt.plot(
+    # #     ox_pump.volute_curve[:, 0, 0] * 1000.0 - 150.0,
+    # #     ox_pump.volute_curve[:, 1, 0] * 1000.0,
+    # #     color="blue",
+    # # )
+
+    # # Fuel Pump Contours
+    # delta_angle = fuel_pump.clocking * 2.0 * np.pi / fuel_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
+
+    # for i in range(fuel_pump.impeller[0].blade_count):
+    #     c = fuel_pump.impeller[0].blade_curve
+    #     rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
+    #                             c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
+    #     plt.plot(
+    #         rotated_curve[:, 0] * 1000.0 - 150.0,
+    #         rotated_curve[:, 1] * 1000.0,
+    #         linewidth=2,
+    #         color="red",
+    #     )
+    #     plt.plot(np.nan, np.nan)
+    # # plt.plot(
+    # #     fuel_pump.volute_curve[:, 0, 1] * 1000.0,
+    # #     fuel_pump.volute_curve[:, 1, 1] * 1000.0,
+    # #     color="red",
+    # # )
+
+    # # 
+
+    # # -------------------------------------------------------------------------
+    # # Turbine Contours
+    # # -------------------------------------------------------------------------
+    # ax = plt.gca()
+    # ax.set_aspect("equal", adjustable="box")
+
+    # theta = np.linspace(0.0, 2.0 * np.pi, 1000)  # rad
+
+    # ax.plot(
+    #     turbine.r_pitchline * 1000.0 * np.cos(theta),
+    #     turbine.r_pitchline * 1000.0 * np.sin(theta),
+    #     linestyle="--",
+    #     color="#ffA500",
+    # )
+    # ax.plot(
+    #     turbine.r_tip * 1000.0 * np.cos(theta),
+    #     turbine.r_tip * 1000.0 * np.sin(theta),
+    #     color="#ffA500",
+    # )
+    # ax.plot(
+    #     turbine.r_base * 1000.0 * np.cos(theta),
+    #     turbine.r_base * 1000.0 * np.sin(theta),
+    #     color="#ffA500",
     # )
 
-    # Fuel Pump Contours
-    delta_angle = fuel_pump.clocking * 2.0 * np.pi / fuel_pump.impeller[0].blade_count  # Calculate the angle to rotate each blade
+    # text_str = f"Shaft Speed = {turbine.shaft_speed*30/np.pi:0.2f} rpm\nGG = {gg.mdot:0.2g} kg/s, {gg.mdot*1790:0.0f} SCFM N2 ({gg.mdot/engine.mdot*100:.2g}%)"
 
-    for i in range(fuel_pump.impeller[0].blade_count):
-        c = fuel_pump.impeller[0].blade_curve
-        rotated_curve = np.vstack([c[:,0]*np.cos(i*delta_angle) - c[:,1]*np.sin(i*delta_angle), 
-                                c[:,0]*np.sin(i*delta_angle) + c[:,1]*np.cos(i*delta_angle)]).T
-        plt.plot(
-            rotated_curve[:, 0] * 1000.0 - 150.0,
-            rotated_curve[:, 1] * 1000.0,
-            linewidth=2,
-            color="red",
-        )
-        plt.plot(np.nan, np.nan)
-    # plt.plot(
-    #     fuel_pump.volute_curve[:, 0, 1] * 1000.0,
-    #     fuel_pump.volute_curve[:, 1, 1] * 1000.0,
-    #     color="red",
+    # ax.text(0.2,0.1,text_str,transform=ax.transAxes,bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+
+    # # -------------------------------------------------------------------------
+    # # Turbine Blades
+    # # -------------------------------------------------------------------------
+    # plt.figure(5)
+    # plt.clf()
+    # ax = plt.gca()
+    # ax.set_aspect("equal", adjustable="box")
+    # ax.grid(True)
+    # ax.set_title("Rotor Blade Geometry (mm)")
+
+    # # Trailing edge
+    # sagitta = turbine.blade_chord / 2.0 * (1.0 - np.cos(turbine.blade_angle)) / np.sin(turbine.blade_angle)  # m
+    # tip = np.array([-sagitta, turbine.blade_chord / 2.0])  # [m,m] - chord point
+    # blade_radius = sagitta / 2.0 + turbine.blade_chord**2 / (8.0 * sagitta)  # m
+    # center_arc = np.array([-blade_radius, 0.0])  # y=0
+    # angle_trailing = np.arctan2(tip[1] - 0.0, tip[0] + blade_radius)  # rad
+    # arc_theta = np.linspace(-angle_trailing, angle_trailing, 120)  # rad
+    # x_trailing = center_arc[0] + blade_radius * np.cos(arc_theta)  # [m,m]
+    # y_trailing = center_arc[1] + blade_radius * np.sin(arc_theta)  # [m,m]
+
+    # # Leading edge
+    # apex_leading = np.array(
+    #     [turbine.blade_pitch - turbine.blade_opening, 0.0]
+    # )  # [m,m] - location of blade apex point
+    # center_leading = apex_leading + np.array([-turbine.radius_leading, 0.0])  # [m,m] on y=0
+    # center_tip = tip - center_leading  # m
+    # base_angle = np.arctan2(center_tip[1], center_tip[0])  # rad
+    # tan_angle = base_angle - np.arccos(turbine.radius_leading / np.linalg.norm(center_tip))  # rad - upper tangent
+    # tangency_leading = center_leading + turbine.radius_leading * np.array(
+    #     [np.cos(tan_angle), np.sin(tan_angle)]
+    # )  # [m,m]
+    # theta_leading = np.linspace(-tan_angle, tan_angle, 60)  # rad
+    # x_leading = center_leading[0] + turbine.radius_leading * np.cos(theta_leading)  # [m,m]
+    # y_leading = center_leading[1] + turbine.radius_leading * np.sin(theta_leading)  # [m,m]
+
+    # for off in [-turbine.blade_pitch * 1000.0, 0.0, turbine.blade_pitch * 1000.0]:
+    #     ax.plot(
+    #         x_trailing * 1000.0 + off,
+    #         y_trailing * 1000.0,
+    #         "y",
+    #         linewidth=2,
+    #     )  # trailing edge arc
+    #     ax.plot(
+    #         x_leading * 1000.0 + off,
+    #         y_leading * 1000.0,
+    #         "y",
+    #         linewidth=2,
+    #     )  # leading edge arc
+    #     ax.plot(
+    #         [tangency_leading[0] * 1000.0 + off, tip[0] * 1000.0 + off],
+    #         [tangency_leading[1] * 1000.0, tip[1] * 1000.0],
+    #         "y",
+    #         linewidth=2,
+    #     )  # leading edge tangent line
+    #     ax.plot(
+    #         [tangency_leading[0] * 1000.0 + off, tip[0] * 1000.0 + off],
+    #         [-tangency_leading[1] * 1000.0, -tip[1] * 1000.0],
+    #         "y",
+    #         linewidth=2,
+    #     )  # leading edge tangent line
+
+    # str_blades = f"Blade Count = {turbine.blade_count:g}"
+    # ax.text(
+    #     0.2,
+    #     0.5,
+    #     str_blades,
+    #     transform=ax.transAxes,
+    #     bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
     # )
-
-    # 
-
-    # -------------------------------------------------------------------------
-    # Turbine Contours
-    # -------------------------------------------------------------------------
-    ax = plt.gca()
-    ax.set_aspect("equal", adjustable="box")
-
-    theta = np.linspace(0.0, 2.0 * np.pi, 1000)  # rad
-
-    ax.plot(
-        turbine.r_pitchline * 1000.0 * np.cos(theta),
-        turbine.r_pitchline * 1000.0 * np.sin(theta),
-        linestyle="--",
-        color="#ffA500",
-    )
-    ax.plot(
-        turbine.r_tip * 1000.0 * np.cos(theta),
-        turbine.r_tip * 1000.0 * np.sin(theta),
-        color="#ffA500",
-    )
-    ax.plot(
-        turbine.r_base * 1000.0 * np.cos(theta),
-        turbine.r_base * 1000.0 * np.sin(theta),
-        color="#ffA500",
-    )
-
-    text_str = f"Shaft Speed = {turbine.shaft_speed*30/np.pi:0.2f} rpm\nGG = {gg.mdot:0.2g} kg/s, {gg.mdot*1790:0.0f} SCFM ({gg.mdot/engine.mdot*100:.2g}%)"
-
-    ax.text(0.2,0.1,text_str,transform=ax.transAxes,bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
-
-    # -------------------------------------------------------------------------
-    # Turbine Blades
-    # -------------------------------------------------------------------------
-    plt.figure(5)
-    plt.clf()
-    ax = plt.gca()
-    ax.set_aspect("equal", adjustable="box")
-    ax.grid(True)
-    ax.set_title("Rotor Blade Geometry (mm)")
-
-    # Trailing edge
-    sagitta = turbine.blade_chord / 2.0 * (1.0 - np.cos(turbine.blade_angle)) / np.sin(turbine.blade_angle)  # m
-    tip = np.array([-sagitta, turbine.blade_chord / 2.0])  # [m,m] - chord point
-    blade_radius = sagitta / 2.0 + turbine.blade_chord**2 / (8.0 * sagitta)  # m
-    center_arc = np.array([-blade_radius, 0.0])  # y=0
-    angle_trailing = np.arctan2(tip[1] - 0.0, tip[0] + blade_radius)  # rad
-    arc_theta = np.linspace(-angle_trailing, angle_trailing, 120)  # rad
-    x_trailing = center_arc[0] + blade_radius * np.cos(arc_theta)  # [m,m]
-    y_trailing = center_arc[1] + blade_radius * np.sin(arc_theta)  # [m,m]
-
-    # Leading edge
-    apex_leading = np.array(
-        [turbine.blade_pitch - turbine.blade_opening, 0.0]
-    )  # [m,m] - location of blade apex point
-    center_leading = apex_leading + np.array([-turbine.radius_leading, 0.0])  # [m,m] on y=0
-    center_tip = tip - center_leading  # m
-    base_angle = np.arctan2(center_tip[1], center_tip[0])  # rad
-    tan_angle = base_angle - np.arccos(turbine.radius_leading / np.linalg.norm(center_tip))  # rad - upper tangent
-    tangency_leading = center_leading + turbine.radius_leading * np.array(
-        [np.cos(tan_angle), np.sin(tan_angle)]
-    )  # [m,m]
-    theta_leading = np.linspace(-tan_angle, tan_angle, 60)  # rad
-    x_leading = center_leading[0] + turbine.radius_leading * np.cos(theta_leading)  # [m,m]
-    y_leading = center_leading[1] + turbine.radius_leading * np.sin(theta_leading)  # [m,m]
-
-    for off in [-turbine.blade_pitch * 1000.0, 0.0, turbine.blade_pitch * 1000.0]:
-        ax.plot(
-            x_trailing * 1000.0 + off,
-            y_trailing * 1000.0,
-            "y",
-            linewidth=2,
-        )  # trailing edge arc
-        ax.plot(
-            x_leading * 1000.0 + off,
-            y_leading * 1000.0,
-            "y",
-            linewidth=2,
-        )  # leading edge arc
-        ax.plot(
-            [tangency_leading[0] * 1000.0 + off, tip[0] * 1000.0 + off],
-            [tangency_leading[1] * 1000.0, tip[1] * 1000.0],
-            "y",
-            linewidth=2,
-        )  # leading edge tangent line
-        ax.plot(
-            [tangency_leading[0] * 1000.0 + off, tip[0] * 1000.0 + off],
-            [-tangency_leading[1] * 1000.0, -tip[1] * 1000.0],
-            "y",
-            linewidth=2,
-        )  # leading edge tangent line
-
-    str_blades = f"Blade Count = {turbine.blade_count:g}"
-    ax.text(
-        0.2,
-        0.5,
-        str_blades,
-        transform=ax.transAxes,
-        bbox=dict(boxstyle="round", facecolor="white", alpha=0.7),
-    )
 
     plt.show(block=False)
     input("Press Enter to exit...")

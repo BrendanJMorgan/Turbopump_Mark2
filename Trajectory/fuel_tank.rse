@@ -1,0 +1,12 @@
+<engine-database>
+  <engine-list>
+    <engine  mfg="brendanmorgan" code="Fuel Tank" Type="regenerative" dia="254." len="1040."
+initWt="42500." propWt="0." delays="0" auto-calc-mass="0" auto-calc-cg="0">
+    <comments></comments>
+    <data>
+      <eng-data  t="0." f="0." m="42500." cg="520."/>
+      <eng-data  t="40." f="0." m="0." cg="1040."/>
+    </data>
+  </engine>
+</engine-list>
+</engine-database>

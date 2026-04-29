@@ -1,0 +1,15 @@
+<engine-database>
+  <engine-list>
+    <engine  mfg="brendanmorgan" code="Mark 2 Engine" Type="regenerative" dia="127." len="609.6"
+initWt="0." propWt="0." delays="0" auto-calc-mass="0" auto-calc-cg="0">
+    <comments></comments>
+    <data>
+      <eng-data  t="0." f="0." m="0." cg="300.0"/>
+      <eng-data  t="2." f="6250." m="0." cg="300.0"/>
+      <eng-data  t="38." f="6250." m="0." cg="300.0"/>
+      <eng-data  t="40." f="0" m="0." cg="300.0"/>
+
+    </data>
+  </engine>
+</engine-list>
+</engine-database>

@@ -32,9 +32,10 @@ def pumps(p: pump):
 
     # the real runs
     inducers(p)
-    while abs(np.mean(p.impeller[0].blockage) - old_blockage) > 0.01:
-        old_blockage = np.mean(p.impeller[0].blockage)
-        # TODO: add functionality for a multistage pump (duplicate impellers, blades; add crossover module)
+    # while abs(np.mean(p.impeller[0].blockage) - old_blockage) > 0.01:
+    for iteration in range(2):
+        print(np.mean(p.impeller[0].blockage))
+        # TODO: add functionality for a multistage pump .(duplicate impellers, blades; add crossover module)
         impellers(p)
         blades(p)
     

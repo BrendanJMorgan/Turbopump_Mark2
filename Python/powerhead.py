@@ -10,6 +10,10 @@ from CoolProp.CoolProp import PropsSI
 from rocketprops.rocket_prop import get_prop as rprop
 
 def powerhead():
+
+    rprop_fuel = rprop(engine.fuelrp)
+    rprop_oxidizer = rprop(engine.oxidizer)
+
     # Total Mass Flow Rate INITIAL GUESSES
     gg.mdot = tca.mdot*gg.fraction_guess/(1-gg.fraction_guess)       # kg/s - mass flow rate through gas generator
     gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))                             # kg/s - fuel mass flow rate through gas generator
@@ -22,21 +26,21 @@ def powerhead():
     ox_pump = pump(fluid='ox')
     ox_pump.p_out = tca.pc*(1+tca.stiffness) + 10*6894.76                    # Pa - add 10 psi of margin for plumbing losses
     ox_pump.p_in  = ox_pump.tank.p                                           # Pa   
-    ox_pump.T_in  = rprop(engine.oxidizer).TdegRAtPsat(engine.p_amb/6894.76)/1.8     # K - tank temperature - assumes saturated propellant during fill
-    ox_pump.density = 1000*rprop(engine.oxidizer).SGLiqAtTdegR(ox_pump.T_in*1.8)      # kg/m3 - density of LOX at inlet
-    ox_pump.viscosity = 0.1*rprop(engine.oxidizer).ViscAtTdegR(ox_pump.T_in*1.8)     # Pa-s - viscosity of LOX at inlet
+    ox_pump.T_in  = rprop_oxidizer.TdegRAtPsat(engine.p_amb/6894.76)/1.8     # K - tank temperature - assumes saturated propellant during fill
+    ox_pump.density = 1000*rprop_oxidizer.SGLiqAtTdegR(ox_pump.T_in*1.8)      # kg/m3 - density of LOX at inlet
+    ox_pump.viscosity = 0.1*rprop_oxidizer.ViscAtTdegR(ox_pump.T_in*1.8)     # Pa-s - viscosity of LOX at inlet
     ox_pump.mdot = engine.mdot_ox_total                                      # kg/s     
-    ox_pump.pvap_inlet = 6894.76*rprop(engine.oxidizer).PvapAtTdegR(ox_pump.T_in*1.8)        # Pa - vapor pressure of LOX at tank temperature
+    ox_pump.pvap_inlet = 6894.76*rprop_oxidizer.PvapAtTdegR(ox_pump.T_in*1.8)        # Pa - vapor pressure of LOX at tank temperature
   
     # Fuel Pump
     fuel_pump = pump(fluid='fuel')
-    fuel_pump.p_out = tca.p_cool[-1] # add margin for plumbing losses                   # Pa
+    fuel_pump.p_out = tca.regenerative_coolant.p[-1] # add margin for plumbing losses                   # Pa
     fuel_pump.p_in = fuel_pump.tank.p                                                       # Pa
     fuel_pump.T_in = engine.T_amb                                                       # K - tank temperature    
-    fuel_pump.density   = 1000*rprop(engine.fuelrp).SGLiqAtTdegR(fuel_pump.T_in*1.8)      # kg/m3 - density of fuel at inlet
-    fuel_pump.viscosity = 0.1*rprop(engine.fuelrp).ViscAtTdegR(fuel_pump.T_in*1.8)     # Pa-s - viscosity of fuel at inlet
+    fuel_pump.density   = 1000*rprop_fuel.SGLiqAtTdegR(fuel_pump.T_in*1.8)      # kg/m3 - density of fuel at inlet
+    fuel_pump.viscosity = 0.1*rprop_fuel.ViscAtTdegR(fuel_pump.T_in*1.8)     # Pa-s - viscosity of fuel at inlet
     fuel_pump.mdot  = engine.mdot_fuel_total                                            # kg/s
-    fuel_pump.pvap_inlet = 6894.76*rprop(engine.fuelrp).PvapAtTdegR(fuel_pump.T_in*1.8) # Pa - vapor pressure of RP1 at tank temperature
+    fuel_pump.pvap_inlet = 6894.76*rprop_fuel.PvapAtTdegR(fuel_pump.T_in*1.8) # Pa - vapor pressure of RP1 at tank temperature
     
     # Find Shaft Speed
     pumps(ox_pump)

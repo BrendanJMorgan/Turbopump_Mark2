@@ -54,12 +54,7 @@ def blades(p: pump):
 
     imp.meridional_length = np.sum(np.sqrt(np.diff(imp.blade_curve[:, 0])**2 + np.diff(imp.blade_curve[:, 2])**2)) # m - arc length of blade projected onto the meridional plane
 
-    radial = imp.blade_curve[:-1]
-    tangent = np.diff(imp.blade_curve, axis=0)
-    normal_deviation = np.arctan2(radial[:,0]*tangent[:,1] - radial[:,1]*tangent[:,0], np.sum(radial * tangent, axis=1)) # rad
-    normal_deviation = [list(normal_deviation) + [normal_deviation[-1]]][0] # pad to same length as blade curve
-
-    imp.blockage[inlet_idx:] = 1 - imp.blade_count * (2*imp.boundary_layer_thickness + imp.blade_thickness) / (2*np.pi*imp.meanline_curve_bladed[:,0]) / np.cos(normal_deviation) # unitless
+    imp.blockage[inlet_idx:] = 1 - imp.blade_count * (2*imp.boundary_layer_thickness + imp.blade_thickness) / (2*np.pi*imp.meanline_curve_bladed[:,0]) / np.sin(blade_angle) # unitless
 
     #######################################################################################################
     ### Velocity Slip
@@ -70,9 +65,7 @@ def blades(p: pump):
     r_ref = imp.meanline_curve_bladed[0,0] # m - scalar reference radius
     psi_prime = a * (1.0 + np.sin(blade_angle)) # unitless
     denom = imp.blade_count * 0.5 * imp.meanline_curve_bladed[:,0]**2 - r_ref**2 
-    slip_factor = psi_prime * (imp.meanline_curve_bladed[:,0]**2) / denom # unitless
-
-    # imp.slip_factor = slip_factor  # update for next outer iteration (volute loop)
+    imp.slip_factor = psi_prime * (imp.meanline_curve_bladed[:,0]**2) / denom # unitless
 
     # Cavitation Check
     # eqns 25 and 26 in pump handbook
