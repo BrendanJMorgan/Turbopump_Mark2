@@ -16,15 +16,15 @@ def powerhead():
 
     # Total Mass Flow Rate INITIAL GUESSES
     gg.mdot = tca.mdot*gg.fraction_guess/(1-gg.fraction_guess)       # kg/s - mass flow rate through gas generator
-    gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))                             # kg/s - fuel mass flow rate through gas generator
-    gg.mdot_ox   = gg.mdot*(gg.OF/(1+gg.OF))                         # kg/s - oxidizer mass flow rate through gas generator
+    gg.mdot_fuel = gg.mdot*(1/(1+gg.mixture_ratio))                             # kg/s - fuel mass flow rate through gas generator
+    gg.mdot_ox   = gg.mdot*(gg.mixture_ratio/(1+gg.mixture_ratio))                         # kg/s - oxidizer mass flow rate through gas generator
     engine.mdot_fuel_total = tca.mdot_fuel + gg.mdot_fuel            # kg/s - total fuel mass flow rate
     engine.mdot_ox_total   = tca.mdot_ox   + gg.mdot_ox              # kg/s - total oxidizer mass flow rate
     # TODO: add a verification and/or iteration on the gg fraction guess at end of powerhead module
 
     # Liquid Oxygen Pump
     ox_pump = pump(fluid='ox')
-    ox_pump.p_out = tca.pc*(1+tca.stiffness) + 10*6894.76                    # Pa - add 10 psi of margin for plumbing losses
+    ox_pump.p_out = tca.p_injector_manifold + 10*6894.76                    # Pa - add 10 psi of margin for plumbing losses
     ox_pump.p_in  = ox_pump.tank.p                                           # Pa   
     ox_pump.T_in  = rprop_oxidizer.TdegRAtPsat(engine.p_amb/6894.76)/1.8     # K - tank temperature - assumes saturated propellant during fill
     ox_pump.density = 1000*rprop_oxidizer.SGLiqAtTdegR(ox_pump.T_in*1.8)      # kg/m3 - density of LOX at inlet

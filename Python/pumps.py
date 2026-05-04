@@ -7,7 +7,7 @@ import numpy as np
 from impellers import impellers
 from blades import blades
 from volute import volute
-from inducers import inducers
+from inducers import inducer
 
 def pumps(p: pump):
 
@@ -27,20 +27,19 @@ def pumps(p: pump):
 
     # the initial run is just to find shaft speed
     if not p.shaft_speed:
-        inducers(p)
+        inducer(p)
         return
 
     # the real runs
-    inducers(p)
+    inducer(p)
     # while abs(np.mean(p.impeller[0].blockage) - old_blockage) > 0.01:
     for iteration in range(2):
         print(np.mean(p.impeller[0].blockage))
-        # TODO: add functionality for a multistage pump .(duplicate impellers, blades; add crossover module)
+        # TODO: add functionality for a multistage pump (duplicate impellers, blades; add crossover module)
         impellers(p)
         blades(p)
     
     # volute(p)
-    # inducer(p)
 
     # Requirements for Turbine ----------------------------------------------
     term1 = (p.vdot / (p.surface_roughness**2 * abs(p.shaft_speed))) ** -0.2133

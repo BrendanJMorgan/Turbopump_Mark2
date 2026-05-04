@@ -36,25 +36,19 @@ def impellers(p: pump):
 
     imp.r_outlet = 1 / abs(p.shaft_speed) * np.sqrt (engine.g*imp.head_rise / imp.head_coeff); # m - impeller exit radius, Gulich eqn 7.1.3
 
-    if imp.r_outlet < ind.r_tip:
+    if imp.r_outlet < ind.r_tip[-1]:
         raise ValueError(f"Impeller outlet radius {round(imp.r_outlet,3)} m is smaller than inducer tip radius {round(ind.r_tip,3)} m")
 
     r_eye_margin = 1.15 + 0.2116*(imp.specific_speed-0.2836); # unitless - margin correction factor, Gulich 7.1.4; interpolated for a normal impeller (not a suction impeller)
     swirl_number = 0.5; # NEEDS TO BE ITERATIVE 
     
-    imp.r_inlet = ind.r_tip
+    imp.r_inlet = ind.r_tip[-1]
+    imp.vdot = p.vdot # m3/s - MIGHT NEED TO UPDATE THIS ASSUMPTION WHEN IMPLEMENTING SECONDARY FLOWS
+    imp.r_hub = ind.r_hub[-1]
+    imp.v_inlet = imp.vdot * np.pi*(imp.r_inlet**2-imp.r_hub**2) # m/s
+    imp.flow_coeff = imp.v_inlet / (p.shaft_speed * imp.r_inlet)
 
-    imp.v_inlet = imp.flow_coeff * p.shaft_speed * imp.r_inlet # m/s
-    imp.r_hub = np.sqrt(imp.r_inlet**2 - p.vdot / imp.v_inlet / np.pi) # m - impeller hub radius, from flow continuity and inducer outlet velocity; this is just a starting point for the hub radius, which will be iteratively updated to achieve the desired blade blockage
-
-    # imp.r_inlet = imp.r_outlet * r_eye_margin * np.sqrt((imp.r_hub/imp.r_outlet)**2 + 
-    #                                                                 0.00148*2*imp.head_coeff*(imp.specific_speed*52.9186)**1.33/swirl_number**0.67) 
-    #     # m - impeller inlet radius, Gulich eqn 7.1.4
-    # imp.eye_flow_coeff = p.vdot / (np.pi*(imp.r_inlet**2-imp.r_hub**2)*imp.r_inlet * p.shaft_speed) # unitless
-
-    # The exit width b2
-    imp.w_outlet = 2*imp.r_outlet * (0.017 + 0.1386*imp.specific_speed - 0.022387*imp.specific_speed**2 + 0.0013767*imp.specific_speed**3) 
-        # m - outlet width; empirical; Gulich eqn 7.1
+    imp.w_outlet = 2*imp.r_outlet * (0.017 + 0.1386*imp.specific_speed - 0.022387*imp.specific_speed**2 + 0.0013767*imp.specific_speed**3) # m - outlet width; empirical; Gulich eqn 7.1
 
     # this needs boundary layer and leakage effect - pg 2.60?
     # could parameterize a width at each station with a blockage vector

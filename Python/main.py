@@ -13,7 +13,7 @@ from engine_state import engine, tca, pump, turbine, gg
 
 def main():
     thrust_chamber_assembly() # contains submodules combustion_chamber, cc_geometry, cc_gas_flow, coolant_flow
-    # powerhead() # contains submodules pump, gas_generator, turbine
+    powerhead() # contains submodules pump, gas_generator, turbine
     plots()
 
 if __name__ == "__main__":

@@ -104,21 +104,27 @@ class inducer:
     def __init__(self, fluid: str):
         self.fluid = fluid
         if self.fluid == 'ox':
-            self.flow_coeff = 0.12          # unitless
+            self.flow_coeff = 0.1           # unitless
             self.blade_number = 3           # unitless
             self.clearance_radial = 2E-4    # m
             self.hub_tip_ratio = 0.3        # unitless - ratio of hub radius to tip radius of inducer
+            self.hub_tip_ratio_out = 0.5    # unitless - ratio of hub radius to tip radius of inducer
             self.suction_margin = 1.5       # unitless - Margin of extra net positive suction head (NPSH)
             self.flow_margin = 1.2          # unitless - margin on flow rate to ensure inducer is not undersized
             self.blade_thickness = 0.001    # m - thickness of inducer blades
+            self.tip_clearance = 0.001      # m
+            self.length_pitch_ratio = 2.5   # 2.5 is the max empirical coefficient beyond which Gulich says there are negligible benefits
         elif self.fluid == 'fuel':
             self.flow_coeff = 0.1          
             self.blade_number = 3
             self.clearance_radial = 2E-4
             self.hub_tip_ratio = 0.3
+            self.hub_tip_ratio_out = 0.5   
             self.suction_margin = 4
             self.flow_margin = 1.2      
             self.blade_thickness = 0.001  
+            self.tip_clearance = 0.001
+            self.length_pitch_ratio = 2.5
 
 class impeller:
     def __init__(self, stage: int, fluid: str):
@@ -130,9 +136,8 @@ class impeller:
             self.shroud_in_angle = -90 * np.pi / 180
             self.shroud_out_angle = -0 * np.pi / 180
             self.thickness = 0.003
-            self.NPSH_required = 100
+            self.NPSH_required = 20
             self.suction_margin = 1.5
-            self.flow_coeff = 0.1
             self.surface_roughness = 10E-6
         elif self.fluid == 'fuel':
             self.stage = stage
@@ -141,9 +146,8 @@ class impeller:
             self.shroud_in_angle = -90 * np.pi / 180
             self.shroud_out_angle = -0 * np.pi / 180
             self.thickness = 0.003
-            self.NPSH_required = 100
+            self.NPSH_required = 20
             self.suction_margin = 1.5
-            self.flow_coeff = 0.1
             self.surface_roughness = 10E-6
 
 class volute:

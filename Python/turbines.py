@@ -107,7 +107,7 @@ def turbines(t: turbine):
     # Flow Adjustments
     engine.mdot = tca.mdot + gg.mdot               # kg/s
     gg.fraction = gg.mdot / engine.mdot            # unitless
-    gg.mdot_fuel = gg.mdot*(1/(1+gg.OF))           # kg/s - Fuel Mass Flow Rate
-    gg.mdot_ox = gg.mdot*(gg.OF/(1+gg.OF))         # kg/s - Oxidizer Mass Flow Rate
+    gg.mdot_fuel = gg.mdot*(1/(1+gg.mixture_ratio))           # kg/s - Fuel Mass Flow Rate
+    gg.mdot_ox = gg.mdot*(gg.mixture_ratio/(1+gg.mixture_ratio))         # kg/s - Oxidizer Mass Flow Rate
     engine.mdot_fuel = tca.mdot_fuel+gg.mdot_fuel   # kg/s
     engine.mdot_ox = tca.mdot_ox+gg.mdot_ox         # kg/s
