@@ -1,0 +1,137 @@
+# =====================================================================
+# Mark 2 engine input parameters (primitives).
+#
+# Derived quantities computed in engine_state.py
+#
+# All values are SI base units. The trailing
+# comment shows the original natural-unit expression for readability.
+# =====================================================================
+
+engine:
+  g: 9.80665                # m/s^2
+  thrust: 40000             # N - INCLUDES GG exhaust thrust
+  p_amb: 93900              # Pa - ambient pressure at 2100 ft elevation
+  T_amb: 293                # K
+  fuel: JetA                # 'JetA' or 'C2H5OH(L)'
+  fuelrp: RP1               # rocketprops only has RP-1, not Jet-A
+  oxidizer: LOX             # 'O2(L)'
+  proof: 1                  # proportion of fuel (remainder is water)
+  shaft_speed_cap: 2094.3951023931954   # rad/s = 20000 * pi/30 (20000 rpm)
+  common_shaft: true        # whether the pumps share a common shaft
+
+tca:
+  dx: 0.0001                # m - position step
+  converge_angle: 0.7853981633974483   # rad = 45 * pi/180 (45 deg)
+  diverge_angle: 0.2617993877991494    # rad = 15 * pi/180 (15 deg)
+  l_star: 1.5               # m - characteristic chamber length
+  rc_throat: 0.025          # m - radius of curvature at the throat
+  d2_chamber: 0.15239999999999998      # m = 6 * 0.0254 (6 in)
+  wall_thickness: 0.006     # m  (SLANT VS VERTICAL THICKNESS)
+  pc: 5000000.0             # Pa = 50E5 - chamber (stagnation) pressure
+  mixture_ratio: 2.0        # oxidizer/fuel ratio (by mass)
+  c_star_efficiency: 0.85   # characteristic velocity efficiency, experimental
+  c_tau_efficiency: 0.95    # thrust coefficient efficiency, experimental
+  compute_thermals: true    # run regen thermal balance (increases runtime)
+
+  film_coolant:
+    fraction: [0.05, 0.05]  # fraction of fuel mass flow per film-cooling row (3%-10%, Huzel & Huang)
+    injection_x: [0, 0.25]  # m - injector perimeter, and along chamber wall
+    v_injection: 10         # m/s - initial gas velocity needed for film model
+    injection_efficiency: 1
+
+  regenerative_coolant:
+    flow_direction: -1      # 1 = forward (injector->nozzle), -1 = counter (nozzle->injector)
+
+  regenerative_jacket:
+    n_pipe1: 64             # channels along barrel
+    n_pipe2: 32             # channels near throat
+    n_pipe3: 64             # channels along lower nozzle
+    gap_pipe: 0.003175      # m = 1/8 * 0.0254 (1/8 in) - fin thickness between channels
+    h_pipe: 0.002032        # m = 0.08 * 0.0254 (0.08 in) - coolant channel height
+    merge_radius: 0.057464999999999995   # m = 0.45 * (5.5*0.0254 - 2*0.006)
+    cond: 401               # W/m-K - thermal conductivity of copper
+
+gg:
+  stiffness: 0.25           # Pa/Pa - guess
+  fraction_guess: 0.05      # fraction of total mass flow to the gas generator (F1=0.030, J2=0.014)
+  mixture_ratio: 0.2        # oxidizer/fuel ratio (hydrocarbons ~0.3, NASA 1972)
+  c_star_efficiency: 0.75   # characteristic velocity efficiency, experimental
+  c_tau_efficiency: 0.96    # thrust coefficient efficiency factor
+  orifice_number_fuel: 12   # 4 impinging, 8 showerhead film cooling on gg injector
+  r_chamber: 0.025          # m - radius of gg combustion chamber
+
+turbine:
+  r_pitchline: 0.1143       # m = 4.5 * 0.0254 (4.5 in)
+  gear_ratio: 1             # higher = faster/smaller turbine; 1 = common shaft
+  d_throat_nozzle: 0.0032258           # m = 0.127 * 0.0254 (0.127 in)
+  diverge_angle_gg: 0.2617993877991494 # rad = 15 * pi/180 (15 deg)
+  blade_width: 0.0127       # m = 0.5 * 0.0254 (0.5 in)
+  admission_fraction: 0.05555555555555555   # = 20/360 - fraction of nozzle-plate circle with nozzles
+  blade_length: 0.00635     # m = 0.25 * 0.0254 (0.25 in)
+  tip_clearance: 0.0005     # m
+  radius_leading: 0.002     # m - blade leading-edge fillet radius (NEEDS MORE RESEARCH)
+
+# Per-fluid pump configuration. Each fluid composes an inducer, impeller(s),
+# volute, and tank. Requesting a fluid not listed here raises a KeyError.
+pump:
+  ox:
+    surface_roughness: 1.0e-5   # m
+    clocking: 1                 # 1 = CCW, -1 = CW (looking down at inlet)
+    n_stages: 1
+    inducer:
+      flow_coeff: 0.06
+      blade_number: 3
+      clearance_radial: 2.0e-4  # m
+      hub_tip_ratio: 0.2        # inlet hub/tip radius ratio
+      hub_tip_ratio_out: 0.5    # outlet hub/tip radius ratio
+      suction_margin_factor: 1.5   # margin on NPSH
+      flow_margin_factor: 1.2      # margin on flow rate
+      blade_thickness: 0.001    # m
+      tip_clearance: 0.001      # m
+      length_pitch_ratio: 2.5   # max useful value per Gulich
+      sweepback: 1.3526301702956054   # rad = (65+90)/2 * pi/180 (77.5 deg)
+    impeller:
+      hub_in_angle: -1.5707963267948966    # rad = -90 deg
+      hub_out_angle: -0.17453292519943295  # rad = -10 deg
+      shroud_in_angle: -1.5707963267948966 # rad = -90 deg
+      shroud_out_angle: 0.0                # rad = -0 deg
+      thickness: 0.003          # m
+      suction_margin: 1.5
+      surface_roughness: 1.0e-5 # m
+    volute:
+      dummy: 1.0
+      wrap_angle: 6.283185307179586   # rad = 2*pi (single volute; double = pi)
+    tank:
+      p: 250000.0               # Pa = 2.5E5
+      T: 90.188                 # K
+  fuel:
+    surface_roughness: 1.0e-5   # m
+    clocking: 1                 # 1 = CCW, -1 = CW (looking down at inlet)
+    n_stages: 1
+    plumbing_loss: 137895.2   # Pa = 20 * 6894.76 (20 psi) - fuel only
+    inducer:
+      flow_coeff: 0.15
+      blade_number: 3
+      clearance_radial: 2.0e-4  # m
+      hub_tip_ratio: 0.2
+      hub_tip_ratio_out: 0.5
+      suction_margin_factor: 1.5
+      flow_margin_factor: 1.2
+      blade_thickness: 0.001    # m
+      tip_clearance: 0.001      # m
+      length_pitch_ratio: 2.5
+      sweepback: 1.3526301702956054   # rad = (65+90)/2 * pi/180 (77.5 deg)
+    impeller:
+      hub_in_angle: -1.5707963267948966    # rad = -90 deg
+      hub_out_angle: -0.17453292519943295  # rad = -10 deg
+      shroud_in_angle: -1.5707963267948966 # rad = -90 deg
+      shroud_out_angle: 0.0                # rad = -0 deg
+      thickness: 0.003          # m
+      suction_margin: 1.5
+      surface_roughness: 1.0e-5 # m
+    volute:
+      dummy: 1.0
+      wrap_angle: 6.283185307179586   # rad = 2*pi
+    tank:
+      p: 100000.0               # Pa = 1E5
+      T: 293                    # K

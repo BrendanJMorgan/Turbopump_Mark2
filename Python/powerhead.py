@@ -34,7 +34,7 @@ def powerhead():
   
     # Fuel Pump
     fuel_pump = pump(fluid='fuel')
-    fuel_pump.p_out = tca.regenerative_coolant.p[-1] # add margin for plumbing losses                   # Pa
+    fuel_pump.p_out = tca.regenerative_coolant.p[tca.regenerative_coolant.flow_direction] + fuel_pump.plumbing_loss # add margin for plumbing losses                   # Pa
     fuel_pump.p_in = fuel_pump.tank.p                                                       # Pa
     fuel_pump.T_in = engine.T_amb                                                       # K - tank temperature    
     fuel_pump.density   = 1000*rprop_fuel.SGLiqAtTdegR(fuel_pump.T_in*1.8)      # kg/m3 - density of fuel at inlet
@@ -43,10 +43,11 @@ def powerhead():
     fuel_pump.pvap_inlet = 6894.76*rprop_fuel.PvapAtTdegR(fuel_pump.T_in*1.8) # Pa - vapor pressure of RP1 at tank temperature
     
     # Find Shaft Speed
+    ox_pump.shaft_speed = fuel_pump.shaft_speed = None
     pumps(ox_pump)
     pumps(fuel_pump)
 
-    ox_pump.shaft_speed = fuel_pump.shaft_speed = np.min([ox_pump.shaft_speed, fuel_pump.shaft_speed]) # rad/s
+    ox_pump.shaft_speed = fuel_pump.shaft_speed = np.min([ox_pump.shaft_speed, fuel_pump.shaft_speed, engine.shaft_speed_cap]) # rad/s
 
     # Actual Runs
     pumps(ox_pump)

@@ -1,0 +1,12 @@
+# Virtual environment
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Common junk
+.DS_Store
+Thumbs.db

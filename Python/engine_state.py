@@ -1,180 +1,185 @@
+import os
 import numpy as np
-import CoolProp as cp
-import rocketprops as rp
-import math
-from dataclasses import dataclass, asdict
+import yaml
 
-class engine: # For parameters that don't fit neatly within other categories
+# ---------------------------------------------------------------------
+# Load primitive inputs from config.yaml.
+#
+# Access is by direct key indexing throughout, so a missing or renamed
+# parameter raises KeyError at import instead of silently defaulting.
+# Derived quantities are computed below from the primitives so they can
+# never drift out of sync with their parents.
+# ---------------------------------------------------------------------
+_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.yaml')
 
-    g = 9.80665         # m/s2
+with open(_CONFIG_PATH, 'r') as _f:
+    config = yaml.safe_load(_f)
 
-    thrust = 25000      # N - Thrust INCLUDE GG EXHAUST THRUST
-    p_amb = 93900       # Pa - ambient pressure at 2100 feet elevation
-    T_amb = 293         # K - Ambient Temperature
-    
-    fuel = 'JetA'       # 'JetA' 'C2H5OH(L)'
-    fuelrp = 'RP1'      # rocketprop only has RP-1 not Jet-A
-    oxidizer = 'LOX'    # 'O2(L)'
-    proof = 1           # Proportion of fuel (remaining part is water)
 
-    common_shaft = True # Whether the pumps share a common shaft
+class engine:  # For parameters that don't fit neatly within other categories
+    _c = config['engine']
+    g               = _c['g']                # m/s2
+    thrust          = _c['thrust']           # N - Thrust INCLUDE GG EXHAUST THRUST
+    p_amb           = _c['p_amb']            # Pa - ambient pressure at 2100 feet elevation
+    T_amb           = _c['T_amb']            # K - Ambient Temperature
+    fuel            = _c['fuel']             # 'JetA' 'C2H5OH(L)'
+    fuelrp          = _c['fuelrp']           # rocketprop only has RP-1 not Jet-A
+    oxidizer        = _c['oxidizer']         # 'O2(L)'
+    proof           = _c['proof']            # Proportion of fuel (remaining part is water)
+    shaft_speed_cap = _c['shaft_speed_cap']  # rad/s - max shaft speed if not suction limited
+    common_shaft    = _c['common_shaft']     # Whether the pumps share a common shaft
+    del _c
 
-class tca: # Thrust Chamber Assembly
+
+class tca:  # Thrust Chamber Assembly
+    _c = config['tca']
 
     # Chamber/Nozzle Geometry
-    dx = 0.0001                                # m - position step 
-    converge_angle = 45 * math.pi / 180       # rad - half-cone convergence angle of combustion chamber end
-    diverge_angle = 15 * math.pi / 180        # rad - half-cone divergence angle of nozzle
-    l_star = 1.5                                # m - characteristic chamber length
-    rc_throat = 0.025                         # m - radius of curvature around the throat
-    d2_chamber = 6.0*0.0254                        # m
-    wall_thickness = 0.006                         # m % SLANT VS VERTICAL THICKNESS
-    d1_chamber = d2_chamber - 2 * wall_thickness   # m
-    r1_chamber = d1_chamber / 2               # m
+    dx             = _c['dx']              # m - position step
+    converge_angle = _c['converge_angle']  # rad - half-cone convergence angle of chamber end
+    diverge_angle  = _c['diverge_angle']   # rad - half-cone divergence angle of nozzle
+    l_star         = _c['l_star']          # m - characteristic chamber length
+    rc_throat      = _c['rc_throat']       # m - radius of curvature around the throat
+    d2_chamber     = _c['d2_chamber']      # m
+    wall_thickness = _c['wall_thickness']  # m - SLANT VS VERTICAL THICKNESS
+    d1_chamber     = d2_chamber - 2 * wall_thickness  # m  (derived)
+    r1_chamber     = d1_chamber / 2                   # m  (derived)
 
-    pc = 50E5           # Pa - Chamber (Stagnation) Pressure 
-    mixture_ratio = 2.0 # Oxidizer/Fuel Ratio (by mass)
-    c_star_efficiency = 0.85   # Characteristic Vel Efficiency, experimental
-    c_tau_efficiency = 0.95    # Thrust Coefficient Efficiency, experimental
+    pc                = _c['pc']                 # Pa - Chamber (Stagnation) Pressure
+    mixture_ratio     = _c['mixture_ratio']      # Oxidizer/Fuel Ratio (by mass)
+    c_star_efficiency = _c['c_star_efficiency']  # Characteristic Vel Efficiency, experimental
+    c_tau_efficiency  = _c['c_tau_efficiency']   # Thrust Coefficient Efficiency, experimental
 
-    p_injector_manifold = pc*1.25 # Pa - PLACEHOLDER UNTIL A PROPER INJECTOR MODULE IS WRITTEN
-    compute_thermals = True                   # Whether to run regen thermal balance (tends to increase runtime significantly)
+    p_injector_manifold = pc * 1.25  # Pa - PLACEHOLDER UNTIL A PROPER INJECTOR MODULE IS WRITTEN (derived)
+    compute_thermals    = _c['compute_thermals']  # Whether to run regen thermal balance
 
     class combustion_gas:
         p = None
-        T = None    
+        T = None
 
     class film_coolant:
-        fraction = np.array([0.05, 0.05])     # unitless - Fraction of the fuel mass flow dedicated to film cooling orifices - typically 3%-10% (Huzel and Huang)
-        injection_x = [0, 0.25] # m - film cooling orifices around perimeter of injector and along bottom edge of chamber wall
-        v_injection = 10            # m/s - combustion gas must have some initial velocity for injector film cooling to work mathematically
-        injection_efficiency = 1
+        _c = config['tca']['film_coolant']
+        fraction             = np.array(_c['fraction'])  # unitless - fuel mass fraction per film-cooling row
+        injection_x          = _c['injection_x']         # m - film cooling orifice positions
+        v_injection          = _c['v_injection']         # m/s - initial gas velocity for film model
+        injection_efficiency = _c['injection_efficiency']
+        del _c
+
         class liquid:
             None
+
         class gas:
             None
 
     class regenerative_coolant:
-        flow_direction = -1                      # 1 = forward flow (injector to nozzle), -1 = counter flow (nozzle to injector)
+        flow_direction = config['tca']['regenerative_coolant']['flow_direction']  # 1 = forward, -1 = counter
 
     class regenerative_jacket:
-        n_pipe1 = 64                             # number of channels along barrel
-        n_pipe2 = 32                             # number of channels near throat
-        n_pipe3 = 64                             # number of channels along lower nozzle section
-        gap_pipe = 1/8 * 0.0254                  # m - Gap between channels (fin thickness)
-        h_pipe = 0.08 * 0.0254                    # m - coolant channel height
-        merge_radius = 0.45*(5.5*0.0254-2*0.006) # m - when contour is below this radius, transition to n_pipe2
-        cond = 401                               # W/m-K - thermal conductivity of copper
+        _c = config['tca']['regenerative_jacket']
+        n_pipe1      = _c['n_pipe1']       # number of channels along barrel
+        n_pipe2      = _c['n_pipe2']       # number of channels near throat
+        n_pipe3      = _c['n_pipe3']       # number of channels along lower nozzle section
+        gap_pipe     = _c['gap_pipe']      # m - gap between channels (fin thickness)
+        h_pipe       = _c['h_pipe']        # m - coolant channel height
+        merge_radius = _c['merge_radius']  # m - contour radius to transition to n_pipe2
+        cond         = _c['cond']          # W/m-K - thermal conductivity of copper
+        del _c
+
+    del _c
 
 
+class gg:  # Gas Generator
+    _c = config['gg']
+    stiffness           = _c['stiffness']            # Pa/Pa - guess
+    fraction_guess      = _c['fraction_guess']       # unitless - fraction of total mass flow to gg
+    mixture_ratio       = _c['mixture_ratio']        # unitless - Oxidizer/Fuel Ratio
+    c_star_efficiency   = _c['c_star_efficiency']    # characteristic velocity efficiency, experimental
+    c_tau_efficiency    = _c['c_tau_efficiency']     # unitless - Thrust Coefficient Efficiency Factor
+    orifice_number_fuel = _c['orifice_number_fuel']  # 4 impinging, 8 showerhead film cooling
+    r_chamber           = _c['r_chamber']            # m - radius of combustion chamber
+    del _c
 
-class gg: # Gas Generator
-    stiffness = 0.25                    # Pa/Pa - guess
-    fraction_guess = 0.05               # unitless - Fraction of total mass flow sent to the gas generator. Context: F1 = 0.030, J2 = 0.014 DO NOT CHANGE FROM 0.01 NOW
-    mixture_ratio = 0.4                 # unitless - Oxidizer/Fuel Ratio - "[Most] operate at mixture ratios from 0.2 to 1.0, with hydrocarbons falling in the lower end, about 0.3" (NASA 1972)
-    c_star_efficiency = 0.75            # m/s - characteristic velocity efficiency, experimental ANY PAPERS ON THIS?
-    c_tau_efficiency = 0.96             # unitless - Thrust Coefficient Efficiency Factor
-    orifice_number_fuel = 12            # 4 for impinging, 8 for showerhead film cooling on gg injector
-    r_chamber = 0.025                   # m - radius of combustion chamber
+
+class turbine:
+    _c = config['turbine']
+    r_pitchline        = _c['r_pitchline']        # m
+    gear_ratio         = _c['gear_ratio']         # unitless - higher = faster/smaller turbine; 1 = common shaft
+    d_throat_nozzle    = _c['d_throat_nozzle']    # m - diameter of each nozzle off the manifold
+    diverge_angle_gg   = _c['diverge_angle_gg']   # rad - half-cone divergence angle of nozzle plate
+    blade_width        = _c['blade_width']        # m
+    admission_fraction = _c['admission_fraction']  # unitless - fraction of nozzle-plate circle with nozzles
+    blade_length       = _c['blade_length']       # m
+    tip_clearance      = _c['tip_clearance']      # m
+    radius_leading     = _c['radius_leading']     # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
+    del _c
+
 
 class pump:
     def __init__(self, fluid: str):
         self.fluid = fluid
-        self.surface_roughness = 10E-6
-        self.shaft_speed = None
+        c = config['pump'][fluid]  # KeyError here if fluid is not configured
 
-        if self.fluid == 'ox':
-            self.clocking = 1                        # 1 for counterclockwise and -1 for clockwise (looking down at pump inlet)
-            self.n_stages = 1
-            self.inducer = inducer(fluid=self.fluid)
-            self.impeller = [impeller(stage=i, fluid=self.fluid) for i in range(self.n_stages)]
-            self.volute = volute(fluid=self.fluid)
-            self.tank = tank(fluid=self.fluid)
-        elif self.fluid == 'fuel':
-            self.clocking = 1                        
-            self.n_stages = 1
-            self.inducer = inducer(fluid=self.fluid)
-            self.impeller = [impeller(stage=i, fluid=self.fluid) for i in range(self.n_stages)]
-            self.volute = volute(fluid=self.fluid)
-            self.tank = tank(fluid=self.fluid)                        
-        else:
-            raise ValueError("fluid must be 'ox' or 'fuel'")
-        
+        self.surface_roughness = c['surface_roughness']
+        self.shaft_speed = None
+        self.clocking = c['clocking']    # 1 for counterclockwise and -1 for clockwise (looking down at inlet)
+        self.n_stages = c['n_stages']
+        self.inducer = inducer(fluid=self.fluid)
+        self.impeller = [impeller(stage=i, fluid=self.fluid) for i in range(self.n_stages)]
+        self.volute = volute(fluid=self.fluid)
+        self.tank = tank(fluid=self.fluid)
+        if 'plumbing_loss' in c:
+            self.plumbing_loss = c['plumbing_loss']  # Pa - fuel side only
+
+
 class inducer:
     def __init__(self, fluid: str):
         self.fluid = fluid
-        if self.fluid == 'ox':
-            self.flow_coeff = 0.1           # unitless
-            self.blade_number = 3           # unitless
-            self.clearance_radial = 2E-4    # m
-            self.hub_tip_ratio = 0.3        # unitless - ratio of hub radius to tip radius of inducer
-            self.hub_tip_ratio_out = 0.5    # unitless - ratio of hub radius to tip radius of inducer
-            self.suction_margin = 1.5       # unitless - Margin of extra net positive suction head (NPSH)
-            self.flow_margin = 1.2          # unitless - margin on flow rate to ensure inducer is not undersized
-            self.blade_thickness = 0.001    # m - thickness of inducer blades
-            self.tip_clearance = 0.001      # m
-            self.length_pitch_ratio = 2.5   # 2.5 is the max empirical coefficient beyond which Gulich says there are negligible benefits
-        elif self.fluid == 'fuel':
-            self.flow_coeff = 0.1          
-            self.blade_number = 3
-            self.clearance_radial = 2E-4
-            self.hub_tip_ratio = 0.3
-            self.hub_tip_ratio_out = 0.5   
-            self.suction_margin = 4
-            self.flow_margin = 1.2      
-            self.blade_thickness = 0.001  
-            self.tip_clearance = 0.001
-            self.length_pitch_ratio = 2.5
+        c = config['pump'][fluid]['inducer']
+        self.flow_coeff            = c['flow_coeff']             # unitless
+        self.blade_number          = c['blade_number']           # unitless
+        self.clearance_radial      = c['clearance_radial']       # m
+        self.hub_tip_ratio         = c['hub_tip_ratio']          # unitless - inlet hub/tip radius ratio
+        self.hub_tip_ratio_out     = c['hub_tip_ratio_out']      # unitless - outlet hub/tip radius ratio
+        self.suction_margin_factor = c['suction_margin_factor']  # unitless - margin of extra NPSH
+        self.flow_margin_factor    = c['flow_margin_factor']     # unitless - margin on flow rate
+        self.blade_thickness       = c['blade_thickness']        # m - thickness of inducer blades
+        self.tip_clearance         = c['tip_clearance']          # m
+        self.length_pitch_ratio    = c['length_pitch_ratio']     # max empirical value per Gulich
+        self.sweepback             = c['sweepback']              # rad - blade leading-edge sweepback
+
 
 class impeller:
     def __init__(self, stage: int, fluid: str):
         self.fluid = fluid
-        if self.fluid == 'ox':
-            self.stage = stage
-            self.hub_in_angle = -90 * np.pi / 180
-            self.hub_out_angle = -10 * np.pi / 180
-            self.shroud_in_angle = -90 * np.pi / 180
-            self.shroud_out_angle = -0 * np.pi / 180
-            self.thickness = 0.003
-            self.NPSH_required = 20
-            self.suction_margin = 1.5
-            self.surface_roughness = 10E-6
-        elif self.fluid == 'fuel':
-            self.stage = stage
-            self.hub_in_angle = -90 * np.pi / 180
-            self.hub_out_angle = -10 * np.pi / 180
-            self.shroud_in_angle = -90 * np.pi / 180
-            self.shroud_out_angle = -0 * np.pi / 180
-            self.thickness = 0.003
-            self.NPSH_required = 20
-            self.suction_margin = 1.5
-            self.surface_roughness = 10E-6
+        self.blade = blade(fluid=fluid)
+        c = config['pump'][fluid]['impeller']
+        self.stage             = stage
+        self.hub_in_angle      = c['hub_in_angle']
+        self.hub_out_angle     = c['hub_out_angle']
+        self.shroud_in_angle   = c['shroud_in_angle']
+        self.shroud_out_angle  = c['shroud_out_angle']
+        self.thickness         = c['thickness']
+        self.suction_margin    = c['suction_margin']
+        self.surface_roughness = c['surface_roughness']
+
+
+
+class blade:
+    def __init__(self, fluid: str):
+        self.fluid = fluid
+
 
 class volute:
     def __init__(self, fluid: str):
         self.fluid = fluid
-        if self.fluid == 'ox':
-            self.dummy = 1.0               
-        elif self.fluid == 'fuel':
-            self.dummy = 1.0                     
+        c = config['pump'][fluid]['volute']
+        self.dummy      = c['dummy']
+        self.wrap_angle = c['wrap_angle']  # rad - single volute is 2*pi, double volute is pi, etc.
 
-class turbine: 
-    r_pitchline = 0.08                      # m
-    gear_ratio = 1                          # unitless - higher makes for a faster, smaller turbine. 1 = common shaft
-    d_throat_nozzle = 0.127 * 0.0254        # m - diameter of each nozzle leading off the manifold - mdot_gg is a direct function of this and nozzle_number
-    diverge_angle_gg = 15 * math.pi / 180   # rad - half-cone divergence angle of nozzle plate
-    blade_width = 0.5 * 0.0254              # m - real turbines seems to be about 0.5 inches or so
-    admission_fraction = 20 / 360           # unitless - fraction of the nozzle plate circle that actually has nozzles
-    blade_length = 0.25 * 0.0254            # m
-    tip_clearance = 0.0005                  # m
-    radius_leading = 0.002                  # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
 
 class tank:
     def __init__(self, fluid: str):
         self.fluid = fluid
-        if self.fluid == 'ox':
-            self.p = 1.5E5                    # Pa
-            self.T = 90                     # K
-        elif self.fluid == 'fuel':
-            self.p = 1E5                   # Pa
-            self.T = 293                    # K
+        c = config['pump'][fluid]['tank']
+        self.p = c['p']  # Pa
+        self.T = c['T']  # K

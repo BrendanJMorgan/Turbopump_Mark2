@@ -37,3 +37,8 @@ def combustion_chamber():
     tca.mdot_fuel = tca.mdot*(1/(1+tca.mixture_ratio))             # kg/s - Fuel Mass Flow Rate
     tca.mdot_ox = tca.mdot*(tca.mixture_ratio/(1+tca.mixture_ratio))          # kg/s - Oxidizer Mass Flow Rate
 
+    # Transport Species
+    molwt, mf = cea_cc.get_SpeciesMoleFractions(Pc=tca.pc/1e5, MR=tca.mixture_ratio, eps=tca.Ae_At, frozen=0, frozenAtThroat=0, min_fraction=1e-6)
+    tca.combustion_gas.cea_molar_weight = molwt            # dict: name -> g/mol
+    tca.combustion_gas.cea_molar_fractions = mf      # dict: name -> [mole frac per CEA station]
+

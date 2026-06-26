@@ -109,12 +109,12 @@ def plots():
     # Ox pump on the left (mirrored in x, blue)
     ax1.plot(-ox_pump.impeller[0].shroud_curve[:, 0] * 1000.0, ox_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="blue")
     ax1.plot(-ox_pump.impeller[0].hub_curve[:, 0] * 1000.0, ox_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="blue")
-    ax1.plot(-ox_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, ox_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="blue")
+    ax1.plot(-ox_pump.impeller[0].blade.meanline_curve[:, 0] * 1000.0, ox_pump.impeller[0].blade.meanline_curve[:, 1] * 1000.0, "--", color="blue")
 
     # Fuel pump on the right (red)
     ax1.plot(fuel_pump.impeller[0].shroud_curve[:, 0] * 1000.0, fuel_pump.impeller[0].shroud_curve[:, 1] * 1000.0, color="red")
     ax1.plot(fuel_pump.impeller[0].hub_curve[:, 0] * 1000.0, fuel_pump.impeller[0].hub_curve[:, 1] * 1000.0, color="red")
-    ax1.plot(fuel_pump.impeller[0].meanline_curve_bladed[:, 0] * 1000.0, fuel_pump.impeller[0].meanline_curve_bladed[:, 1] * 1000.0, "--", color="red")
+    ax1.plot(fuel_pump.impeller[0].blade.meanline_curve[:, 0] * 1000.0, fuel_pump.impeller[0].blade.meanline_curve[:, 1] * 1000.0, "--", color="red")
 
     ax1.plot([0.0, 0.0], ax1.get_ylim(), color="green")
     ax1.plot(ax1.get_xlim(), [0.0, 0.0], color="green")
@@ -313,14 +313,127 @@ def plots():
 
     plot_inducer_blades(ax1, ox_pump, color="blue")
     plot_inducer_blades(ax2, fuel_pump, color="red")
-
-    text1 = f"phi = {ox_pump.inducer.flow_coeff:0.4g} \npsi = {ox_pump.inducer.head_coeff:0.3g}, \nωss = {ox_pump.inducer.suction_specific_speed:0.4g} (Nss = {2733.00*ox_pump.inducer.suction_specific_speed:0.0f})"
+    ax1.set_box_aspect([np.ptp(ax1.get_xlim()), np.ptp(ax1.get_ylim()), np.ptp(ax1.get_zlim())])
+    ax2.set_box_aspect([np.ptp(ax2.get_xlim()), np.ptp(ax2.get_ylim()), np.ptp(ax2.get_zlim())])
+    
+    text1 = f"phi = {ox_pump.inducer.flow_coeff:0.4g} \npsi = {ox_pump.inducer.head_coeff:0.3g}, \nωss = {ox_pump.inducer.suction_specific_speed_available:0.4g} (Nss = {2733.00*ox_pump.inducer.suction_specific_speed_available:0.0f})\nShaft Speed = {30/np.pi*ox_pump.shaft_speed:0.0f} RPM"
     ax1.text2D(0, -0.1, text1, transform=ax1.transAxes, bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
 
-    text2 = f"phi = {fuel_pump.inducer.flow_coeff:0.4g} \npsi = {fuel_pump.inducer.head_coeff:0.3g}, \nωss = {fuel_pump.inducer.suction_specific_speed:0.4g} (Nss = {2733.00*fuel_pump.inducer.suction_specific_speed:0.0f})"
+    text2 = f"phi = {fuel_pump.inducer.flow_coeff:0.4g} \npsi = {fuel_pump.inducer.head_coeff:0.3g}, \nωss = {fuel_pump.inducer.suction_specific_speed_available:0.4g} (Nss = {2733.00*fuel_pump.inducer.suction_specific_speed_available:0.0f})\nShaft Speed = {30/np.pi*fuel_pump.shaft_speed:0.0f} RPM"
     ax2.text2D(0, -0.1, text2, transform=ax2.transAxes, bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+
+    #######################################################################################################
+    ### Volute Contours
+    #######################################################################################################
+
+    fig7 = plt.figure(7)
+    ax1 = fig7.add_subplot(121, projection='3d')
+    ax2 = fig7.add_subplot(122, projection='3d')
+    ax1.set_title("Ox Volute Geometry (mm)")
+    ax2.set_title("Fuel Volute Geometry (mm)")
+
+
+    def plot_volute(ax, pump_obj, color):
+        vol = pump_obj.volute
+        imp = pump_obj.impeller[0]
+
+        X = vol.contour[:, :, 0]
+        Y = vol.contour[:, :, 1]
+        Z = vol.contour[:, :, 2]
+
+        # Volute tube surface
+        ax.plot_surface(X * 1000, Y * 1000, Z * 1000, color=color, alpha=0.6, linewidth=0, antialiased=True)
+
+        # Revolve impeller shroud + hub for context
+        theta_rev = np.linspace(0.0, 2.0 * np.pi, 64)  # rad
+        for curve, col in [(imp.shroud_curve, "0.5"), (imp.hub_curve, "0.7")]:
+            r = curve[:, 0][:, None]
+            z = curve[:, 1][:, None]
+            Xr = r * np.cos(theta_rev)[None, :] * 1000
+            Yr = r * np.sin(theta_rev)[None, :] * 1000
+            Zr = np.broadcast_to(z, Xr.shape) * 1000
+            ax.plot_surface(Xr, Yr, Zr, color=col, alpha=0.25, linewidth=0)
+
+        ax.set_xlabel("x (mm)")
+        ax.set_ylabel("y (mm)")
+        ax.set_zlabel("z (mm)")
+
+    plot_volute(ax1, ox_pump, color="blue")
+    plot_volute(ax2, fuel_pump, color="red")
+    ax1.set_box_aspect([np.ptp(ax1.get_xlim()), np.ptp(ax1.get_ylim()), np.ptp(ax1.get_zlim())])
+    ax2.set_box_aspect([np.ptp(ax2.get_xlim()), np.ptp(ax2.get_ylim()), np.ptp(ax2.get_zlim())])
+
+    text1 = f"method = {ox_pump.volute.design_method}\nd_throat = {ox_pump.volute.d_throat*1000:0.2f} mm\nc_throat = {ox_pump.volute.c_throat:0.1f} m/s\nloss = {ox_pump.volute.total_loss:0.4g}"
+    ax1.text2D(0, -0.1, text1, transform=ax1.transAxes, bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+
+    text2 = f"method = {fuel_pump.volute.design_method}\nd_throat = {fuel_pump.volute.d_throat*1000:0.2f} mm\nc_throat = {fuel_pump.volute.c_throat:0.1f} m/s\nloss = {fuel_pump.volute.total_loss:0.4g}"
+    ax2.text2D(0, -0.1, text2, transform=ax2.transAxes, bbox=dict(boxstyle="round", facecolor="white", alpha=0.7))
+
+
+
+    #######################################################################################################
+    ### Inducer 2D Blade Geometry
+    #######################################################################################################
+
+    # fig7, (ax_ox, ax_fuel) = plt.subplots(2, 1, figsize=(10, 10))
+
+    # # Ox inducer - all streamlines, blue gradient (light at hub → dark at tip)
+    # n_sl = ox_pump.inducer.r_bladeline.shape[0]
+    # cmap_ox = plt.cm.Blues
+    # for n in range(n_sl):
+    #     color_intensity = 0.3 + 0.7 * (n / (n_sl - 1))
+    #     rtheta = ox_pump.inducer.r_bladeline[n, :] * ox_pump.inducer.theta_bladeline[n, :] * 1000
+    #     z      = ox_pump.inducer.z_bladeline[n, :] * 1000
+    #     ax_ox.plot(rtheta, z, color=cmap_ox(color_intensity), linewidth=0.8)
+
+    # ax_ox.set_xlabel("r·θ (mm)")
+    # ax_ox.set_ylabel("z (mm)")
+    # ax_ox.set_aspect("equal", adjustable="datalim")
+    # ax_ox.grid(True)
+    # ax_ox.set_title(
+    #     f"Ox Inducer – Unrolled Streamlines  "
+    #     f"(β_LE: hub={np.rad2deg(ox_pump.inducer.blade_angle[0,0]):.1f}°, "
+    #     f"tip={np.rad2deg(ox_pump.inducer.blade_angle[-1,0]):.1f}°)   "
+    #     f"[light = hub, dark = tip]"
+    # )
+
+    # # Fuel inducer - all streamlines, red gradient (light at hub → dark at tip)
+    # n_sl = fuel_pump.inducer.r_bladeline.shape[0]
+    # cmap_fuel = plt.cm.Reds
+    # for n in range(n_sl):
+    #     color_intensity = 0.3 + 0.7 * (n / (n_sl - 1))
+    #     rtheta = fuel_pump.inducer.r_bladeline[n, :] * fuel_pump.inducer.theta_bladeline[n, :] * 1000
+    #     z      = fuel_pump.inducer.z_bladeline[n, :] * 1000
+    #     ax_fuel.plot(rtheta, z, color=cmap_fuel(color_intensity), linewidth=0.8)
+
+    # ax_fuel.set_xlabel("r·θ (mm)")
+    # ax_fuel.set_ylabel("z (mm)")
+    # ax_fuel.set_aspect("equal", adjustable="datalim")
+    # ax_fuel.grid(True)
+    # ax_fuel.set_title(
+    #     f"Fuel Inducer – Unrolled Streamlines  "
+    #     f"(β_LE: hub={np.rad2deg(fuel_pump.inducer.blade_angle[0,0]):.1f}°, "
+    #     f"tip={np.rad2deg(fuel_pump.inducer.blade_angle[-1,0]):.1f}°)   "
+    #     f"[light = hub, dark = tip]"
+    # )
+
+    # plt.tight_layout()
+
+    # plt.figure()
+    # n_pts = ox_pump.inducer.blade_angle.shape[1]
+    # s = np.linspace(0, 1, n_pts)
+    # for n in range(len(ox_pump.inducer.blade_angle)):
+    #     plt.plot(s, np.rad2deg(ox_pump.inducer.blade_angle[n]), label=f'n={n}')
+    # plt.xlabel('s/L')
+    # plt.ylabel('β (deg)')
+    # plt.grid(True)
 
     ###################################################################################################################
 
+    print(f"ox_pump.shaft_power: {ox_pump.shaft_power}")
+    print(f"fuel_pump.shaft_power: {fuel_pump.shaft_power}")
+    print(f"ox_pump.shaft_speed: {ox_pump.shaft_speed}")
+    print(f"fuel_pump.shaft_speed: {fuel_pump.shaft_speed}")
+    
     plt.show(block=False)
     input("Press Enter to exit...")

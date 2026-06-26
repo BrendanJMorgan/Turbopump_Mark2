@@ -16,12 +16,12 @@ def combustion_chamber_cooling():
     cool = tca.regenerative_coolant
     film = tca.film_coolant
 
-    # rprop_fuel = rprop(engine.fuelrp)
     fuel = n_dodecane()
 
     #######################################################################################################
     ### Film Coolant Precomputing
     #######################################################################################################
+    
     film.liquid.injection_mdot = np.zeros_like(tca.x) # kg/s - mass flow rate of film coolant injected at each station
     film.liquid.injection_mdot[np.round(np.divide(film.injection_x, tca.dx)).astype(int)] = film.fraction*tca.mdot_fuel # [kg/s]
     
@@ -43,7 +43,7 @@ def combustion_chamber_cooling():
     #######################################################################################################
     ### Regenerative Coolant Precomputing
     #######################################################################################################
-    for attr in ['dp1', 'dp2', 'dp3', 'dp', 'cp', 'cond', 'prandtl', 'nusselt', 'h', 'viscosity', 'density', 'velocity', 'Re', 'f_darcy', 'A', 'dyn_viscosity', 'kin_viscosity', 'mdot', 'resistance']:
+    for attr in ['dp1', 'dp2', 'dp3', 'dp', 'specific_heat', 'thermal_conductivity', 'prandtl', 'nusselt', 'heat_transfer_coeff', 'viscosity', 'density', 'velocity', 'reynolds', 'f_darcy', 'A', 'dyn_viscosity', 'kin_viscosity', 'mdot', 'resistance']:
         setattr(cool, attr, np.zeros_like(tca.x))
     for attr in ['T_cold', 'T_hot', 'resistance']:
         setattr(jacket, attr, np.zeros_like(tca.x))
@@ -93,7 +93,7 @@ def combustion_chamber_cooling():
         setattr(gas, attr, np.zeros_like(tca.x))
     warned = False # warning flag for laminar coolant flow
 
-    gas.T_boundary = gas.T_free * (1 + 0.032 * gas.M**2 + 0.58 * (jacket.T_hot / gas.T_free - 1)) # Reference temperature for gas transport properties
+    # gas.T_boundary = gas.T_free * (1 + 0.032 * gas.M**2 + 0.58 * (jacket.T_hot / gas.T_free - 1)) # Reference temperature for gas transport properties
 
     gas.mdot = (1 - np.sum(film.fraction)) * tca.mdot_fuel + tca.mdot_ox
     drdx = np.gradient(tca.r1, tca.x) # unitless - wall slope
@@ -102,75 +102,94 @@ def combustion_chamber_cooling():
     #######################################################################################################
     ### Gas Mixture Precomputing
     #######################################################################################################
-    gas.products = []
-    gas.mass_fractions = []
-    for k in range(py_cea.indx.ngc):
-        raw_name = py_cea.cdata.prod[k].decode("utf-8").strip() # finds species name from CEA output
+    # station_x = tca.x[tca.cea_station_indices]   # x of [injector, chamber exit, throat, exit]
+    # gas.products = []
+    # gas.mass_fractions = []
+    # gas.molar_fractions = []    # mol per kg of mixture along the contour (proportional to mole fraction)
+    # gas.molecular_weights = []    # kg/mol
 
-        gas.mol_weight = py_cea.therm.mw[k - 1]  # kg/mol - Fortran 1-indexed
-        mass_fractions = np.zeros_like(tca.x)
-        for i in range(4):
-            mole_fraction = py_cea.comp.en[k - 1, i]
-            mass_fractions[tca.cea_station_indices[i]] = float(mole_fraction * gas.mol_weight)  # mass fraction of species k at station i
+    # for j in range(py_cea.indx.ngc):
+    #     name = py_cea.cdata.prod[j].decode("utf-8").strip()
+    #     en_stations = np.array([py_cea.comp.en[j, i] for i in range(4)])   # mol/kg-mix, 4 stations
+    #     if en_stations.sum() <= 0.0: # don't waste time on species not present in the mixture
+    #         continue # species not present                                                        
+    #     gas.products.append(name)
+    #     gas.molar_fractions.append(np.interp(tca.x, station_x, en_stations)) # interpolate between stations
+    #     gas.molecular_weights.append(py_cea.therm.mw[j] * 0.001) # kg/mol
 
-        if sum(mass_fractions) > 0: # add to lists if species is present in the mixture
-            gas.products.append(raw_name)
-            gas.mass_fractions.append(interp_zeros(mass_fractions))
 
-    gas.R = 8.3145 / gas.mol_weight  # J/kg-K - specific gas constant of combustion gases
+    # gas.molar_fractions = np.array(gas.molar_fractions)            # (n_species, nx)
+    # gas.molecular_weights = np.array(gas.molecular_weights)[:, None]   # (n_species, 1)
+    # gas.mol_weight = np.sum(gas.molar_fractions * gas.molecular_weights, axis=0) / np.sum(gas.molar_fractions, axis=0)  # kg/mol
+
+    station_x = tca.x[tca.cea_station_indices] # x of [injector, chamber exit, throat, exit]
+    products, molar_fractions, molecular_weights = [], [], []
+    for name, fractions in gas.cea_molar_fractions.items():
+        products.append(name)
+        molar_fractions.append(np.interp(tca.x, station_x, np.asarray(fractions)))
+        molecular_weights.append(gas.cea_molar_weight[name] * 1e-3)   # kg/mol
+    gas.products = np.array(products) # list of species names
+    gas.molar_fractions = np.array(molar_fractions)              # (n_species, nx)
+    gas.molecular_weights = np.array(molecular_weights)[:, None]
+
+    gas.mol_weight = np.sum(gas.molar_fractions * gas.molecular_weights) / np.sum(gas.molar_fractions)  # kg/mol
+    R_universal = 8.3145 # J/mol-K
+    gas.R = R_universal / gas.mol_weight  # J/kg-K - specific gas constant of combustion gases
     gas.velocity = gas.M * np.sqrt(gas.gamma * gas.R * gas.T_free)  # m/s - velocity of combustion gases at each station
     
-    gas.mass_fractions = np.array(gas.mass_fractions)  # shape: (n_species, 4)
-    
-    for i in range(len(tca.x)):
-        gas.cp[i], gas.viscosity[i], gas.cond[i], gas.density[i] = mixture(
-            gas.products, 
-            gas.mass_fractions[:, i], 
-            gas.T_boundary[i], 
-            gas.p[i]
+    if not (0.010 < np.min(gas.mol_weight) and np.max(gas.mol_weight) < 0.045): # checks for reasonable-ish molar mass
+        raise ValueError(
+            f"Mixture MW {np.min(gas.mol_weight):.4f}-{np.max(gas.mol_weight):.4f} kg/mol out of range. "
+            f"Check py_cea index base (prod/mw/en must share j) and that therm.mw is g/mol.\n"
         )
-        gas.prandtl = np.divide(gas.cp * gas.viscosity, gas.cond, out=np.zeros_like(gas.cp), where=gas.cond > 0)  # Prandtl Number
-
-    # Bartz relation
-    sigma = 1 / (
-        (0.5 * (jacket.T_hot / tca.Tt) * (1 + (gas.gamma - 1) / 2 * gas.M**2) + 0.5) ** 0.68
-        * (1 + (gas.gamma - 1) / 2 * gas.M**2) ** 0.12
-    )
-
-    gas.h = (
-        (0.026 / tca.d_throat ** 0.2)
-        * (gas.viscosity ** 0.2 * gas.cp / gas.prandtl ** 0.6)
-        * (gas.p / tca.c_star) ** 0.8
-        * (tca.d_throat / tca.rc_throat) ** 0.1
-        * (tca.r_throat / tca.r1) ** (2*0.9)
-        * sigma
-    )
     
-    r = gas.prandtl ** 0.33  # recovery factor - 0.5 for laminar flow, 0.33 for turbulent
-    gas.T_adiabatic_wall = gas.T_free * (1 + r * (gas.gamma - 1) / 2 * gas.M ** 2) # K - Adiabatic Wall Temperature. 
-
     #######################################################################################################
     ### Main Loop
     #######################################################################################################
-    for j in range(2):
+
+    max_iterations = 20
+    for j in range(max_iterations): # iterate to convergence, max of 20 iterations to prevent infinite loop in case of non-convergence
+        T_hot_prev = jacket.T_hot.copy()        
+
+        # --- gas side: all of this depends on jacket.T_hot, so it recomputes each pass ---
+        gas.T_boundary = gas.T_free * (1 + 0.032*gas.M**2 + 0.58*(jacket.T_hot/gas.T_free - 1))
         for i in range(len(tca.x)):
+            gas.cp[i], gas.viscosity[i], gas.cond[i], gas.density[i] = mixture(
+                gas.products, gas.molar_fractions[:, i], gas.T_boundary[i], gas.p[i])
+        
+        gas.prandtl = np.divide(gas.cp*gas.viscosity, gas.cond, out=np.zeros_like(gas.cp), where=gas.cond > 0) # unitless - Prandtl Number
+        
+        # Bartz relation
+        sigma = 1 / ((0.5*(jacket.T_hot/tca.Tt)*(1+(gas.gamma-1)/2*gas.M**2) + 0.5)**0.68
+                     * (1+(gas.gamma-1)/2*gas.M**2)**0.12)
+        gas.heat_transfer_coeff = ((0.026/tca.d_throat**0.2)
+            * (gas.viscosity**0.2 * gas.cp / gas.prandtl**0.6)
+            * (gas.p/tca.c_star)**0.8
+            * (tca.d_throat/tca.rc_throat)**0.1
+            * (tca.r_throat/tca.r1)**(2*0.9)
+            * sigma)
+        
+        recovery_factor = gas.prandtl**0.33 # recovery factor - 0.5 for laminar flow, 0.33 for turbulent
+        gas.T_adiabatic_wall = gas.T_free * (1 + recovery_factor*(gas.gamma-1)/2*gas.M**2) # K - Adiabatic Wall Temperature
+
+        for i in range(len(tca.x)): # iterate along flow direction
 
             #######################################################################################################
             ### Regenerative Coolant
             #######################################################################################################
 
-            cool.cp[i]            = fuel.cp(cool.T[i], cool.p[i])
-            cool.cond[i]          = fuel.k(cool.T[i], cool.p[i])
+            cool.specific_heat[i]            = fuel.cp(cool.T[i], cool.p[i])
+            cool.thermal_conductivity[i]          = fuel.k(cool.T[i], cool.p[i])
             cool.density[i]       = fuel.rho(cool.T[i], cool.p[i])
             cool.dyn_viscosity[i] = fuel.mu(cool.T[i], cool.p[i])
             cool.kin_viscosity[i] = cool.dyn_viscosity[i] / cool.density[i] # m2/s - kinematic viscosity of RP1
-            cool.prandtl[i] = cool.cp[i] * cool.dyn_viscosity[i] / cool.cond[i]  # unitless - Prandtl number
+            cool.prandtl[i] = cool.specific_heat[i] * cool.dyn_viscosity[i] / cool.thermal_conductivity[i]  # unitless - Prandtl number
             cool.velocity[i] = cool.mdot[i] / (cool.density[i] * jacket.n_pipe[i] * jacket.w_pipe[i] * jacket.h_pipe[i]) # m/s
-            cool.Re[i] = cool.density[i] * cool.velocity[i] * jacket.d_hydraulic[i] / cool.dyn_viscosity[i] # unitless
-            cool.f_darcy[i] = (0.79 * np.log(cool.Re[i]) - 1.64) ** (-2.0) # unitless
+            cool.reynolds[i] = cool.density[i] * cool.velocity[i] * jacket.d_hydraulic[i] / cool.dyn_viscosity[i] # unitless
+            cool.f_darcy[i] = (0.79 * np.log(cool.reynolds[i]) - 1.64) ** (-2.0) # unitless
 
             # Nusselt number correlations (Gnielinski / laminar interpolation)
-            if cool.Re[i] < 3000:  # Really should be < 2300, but using laminar flow in transition region for conservatism
+            if cool.reynolds[i] < 3000:  # Really should be < 2300, but using laminar flow in transition region for conservatism
                 lam_x = np.array([1, 1.43, 2, 3, 4, 8, 1e10]) 
                 lam_y = np.array([3.61, 3.73, 4.12, 4.79, 5.33, 6.49, 8.23])
                 # approximate laminar Nu in rectangular duct by interpolation on h_pipe/w_pipe
@@ -178,16 +197,16 @@ def combustion_chamber_cooling():
                 if not warned:
                     print(f"Warning: regen coolant goes laminar at {tca.x[i]} m from injector ({tca.x_exit-tca.x[i]} m from exit plane)\n")
                     warned = True
-            elif (cool.prandtl[i] >= 0.7 and cool.prandtl[i] <= 2000 and cool.Re[i] >= 3000 and cool.Re[i] <= 5e6): # turbulent case
-                cool.nusselt[i] = (cool.f_darcy[i]/8.0) * (cool.Re[i]-1000.0) * cool.prandtl[i] / (1+12.7*(cool.f_darcy[i]/8.0)**0.5 * (cool.prandtl[i]**(2/3)-1))
+            elif (cool.prandtl[i] >= 0.7 and cool.prandtl[i] <= 2000 and cool.reynolds[i] >= 3000 and cool.reynolds[i] <= 5e6): # turbulent case
+                cool.nusselt[i] = (cool.f_darcy[i]/8.0) * (cool.reynolds[i]-1000.0) * cool.prandtl[i] / (1+12.7*(cool.f_darcy[i]/8.0)**0.5 * (cool.prandtl[i]**(2/3)-1))
             else:
-                raise ValueError(f"No correlation for coolant Re = {cool.Re[i]} and/or Pr = {cool.prandtl[i]} number\ncool.T = {cool.T[i]} K, cool.p = {cool.p[i]} Pa, cool.density = {cool.density[i]} kg/m3, cool.viscosity = {cool.dyn_viscosity[i]} Pa-s\n")                               
+                raise ValueError(f"No correlation for coolant Re = {cool.reynolds[i]} and/or Pr = {cool.prandtl[i]} number\ncool.T = {cool.T[i]} K, cool.p = {cool.p[i]} Pa, cool.density = {cool.density[i]} kg/m3, cool.viscosity = {cool.dyn_viscosity[i]} Pa-s\n")                               
 
             # Convective heat transfer coefficient
-            cool.h[i] = cool.nusselt[i] * cool.cond[i] / jacket.d_hydraulic[i]  # W/m2-K
+            cool.heat_transfer_coeff[i] = cool.nusselt[i] * cool.thermal_conductivity[i] / jacket.d_hydraulic[i]  # W/m2-K
 
             # Fin efficiency
-            m_coeff = np.sqrt(2 * cool.h[i] / jacket.cond * fin_thickness[i])  # coefficient for fin efficiency equation
+            m_coeff = np.sqrt(2 * cool.heat_transfer_coeff[i] / jacket.cond * fin_thickness[i])  # coefficient for fin efficiency equation
             fin_eff = np.tanh(m_coeff * (jacket.h_pipe[i] + fin_thickness[i]) / 2) / (m_coeff * (jacket.h_pipe[i] + fin_thickness[i]) / 2)
             cool.A[i] = (2 * fin_height[i] * fin_eff + jacket.w_pipe[i]) * tca.dx * jacket.n_pipe[i]  # m2 - adjusted contact area of coolant on channel walls
 
@@ -226,8 +245,8 @@ def combustion_chamber_cooling():
                 cool.p[i] = cool.p[i-1] - 1*cool.dp[i-1]
 
             cool.velocity[i] = cool.mdot[i] / (cool.density[i] * jacket.n_pipe[i] * jacket.pipe_area[i]) # m/s - fluid bulk speed at each station
-            cool.Re[i] = cool.velocity[i] * jacket.d_hydraulic[i] / cool.kin_viscosity[i] # unitless - Reynolds number
-            cool.f_darcy[i] = (0.79 * np.log(cool.Re[i]) - 1.64) ** (-2.0) # unitless - friction factor, smooth pipe approximation REVIEW IF THIS IS ACCURATE
+            cool.reynolds[i] = cool.velocity[i] * jacket.d_hydraulic[i] / cool.kin_viscosity[i] # unitless - Reynolds number
+            cool.f_darcy[i] = (0.79 * np.log(cool.reynolds[i]) - 1.64) ** (-2.0) # unitless - friction factor, smooth pipe approximation REVIEW IF THIS IS ACCURATE
 
             #######################################################################################################
             ### Film Coolant
@@ -262,22 +281,29 @@ def combustion_chamber_cooling():
                 film.liquid.cond[i]     = fuel.k(film.liquid.T[i], gas.p[i])
                 film.liquid.density[i]  = fuel.rho(film.liquid.T[i], gas.p[i])
                 film.liquid.heat_vap[i] = fuel.hvap(film.liquid.T[i])  # 0 above Tc, handled
+                film.liquid.thickness[i] = film.liquid.mdot[i] / (film.liquid.density[i]  * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m VELOCITY PROBABLY WRONG
+            else:
+                film.liquid.thickness[i] = 0
 
             if film.gas.mdot[i] > 0:
                 # film gas properties
                 film.gas.cp[i]      = fuel.cp(film.gas.T[i], gas.p[i])
                 film.gas.cond[i]    = fuel.k(film.gas.T[i], gas.p[i])
                 film.gas.density[i] = fuel.rho(film.gas.T[i], gas.p[i])
+                film.gas.thickness[i] = film.gas.mdot[i]  / (film.gas.density[i] * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m
+                film.gas.thickness[i] = 0
 
-            film.liquid.thickness[i] = film.liquid.mdot[i] / (film.liquid.density[i]  * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m VELOCITY PROBABLY WRONG
-            film.gas.thickness[i] = film.gas.mdot[i]  / (film.gas.density[i] * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m
+
             film.gas.resistance[i] = film.gas.thickness[i] / (film.gas.cond[i] * gas.A[i])              # K/W - gaseous RP-1 film conduction
             film.liquid.resistance[i] = film.liquid.thickness[i] / (film.liquid.cond[i] * gas.A[i]) # K/W
 
-            # Thermal resistances
-            gas.resistance[i] = 1 / (gas.h[i] * gas.A[i])                      # K/W - combustion gas boundary layer convection
+            #######################################################################################################
+            ### Thermal Balance
+            #######################################################################################################
+
+            gas.resistance[i] = 1 / (gas.heat_transfer_coeff[i] * gas.A[i])                      # K/W - combustion gas boundary layer convection
             jacket.resistance[i] = t_wall[i] / (jacket.cond * gas.A[i])            # K/W - wall conduction
-            cool.resistance[i] = 1 / (cool.h[i] * cool.A[i])                    # K/W - regen coolant convection
+            cool.resistance[i] = 1 / (cool.heat_transfer_coeff[i] * cool.A[i])                    # K/W - regen coolant convection
 
             # Heat balance - q's between the resistive layers. T's are bulk temps of the layers
             if film.gas.mdot[i] > 0 and film.liquid.mdot[i] > 0: # two-phase film coolant
@@ -292,7 +318,7 @@ def combustion_chamber_cooling():
                 tca.q1[i] = (gas.T_adiabatic_wall[i] - film.liquid.T[i]) / (gas.resistance[i]+film.liquid.resistance[i]/2)  # W
                 tca.q2[i] = tca.q1[i]
                 tca.q3[i] = (film.liquid.T[i] - cool.T[i]) / (film.liquid.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)  # W
-            else:
+            else: # no film coolant
                 tca.q1[i] = (gas.T_adiabatic_wall[i] - cool.T[i]) / (gas.resistance[i] + jacket.resistance[i] + cool.resistance[i]/2)  # W
                 tca.q2[i] = tca.q1[i]
                 tca.q3[i] = tca.q1[i]
@@ -303,20 +329,40 @@ def combustion_chamber_cooling():
             if i == flow_entrance_index:
                 cool.T[i] = 400 # K - CHANGE TO PUMP DISCHARGE TEMPERATURE
             else:
-                cool.T[i] = cool.T[i-1] + next * tca.q3[i] / (cool.mdot[i] * cool.cp[i]) # K
+                cool.T[i] = cool.T[i-1] + next * tca.q3[i] / (cool.mdot[i] * cool.specific_heat[i]) # K
 
-            # March film temperatures only when the phase exists
+            # # March film temperatures only when the phase exists
+            # if film.gas.mdot[i] > 0 and film.gas.cp[i] > 0: # gas film exists
+            #     film.gas.T[i] = film.gas.T[i-1] + (tca.q1[i]-tca.q2[i])/(film.gas.mdot[i]*film.gas.cp[i]) # gas film gets hotter
+            # else: # no gas film
+            #     film.gas.T[i] = film.liquid.T[i] if film.liquid.mdot[i] > 0 else gas.T[i]
+            #     # Set to something physically sensible so next station's property call doesn't NaN
+
             if film.gas.mdot[i] > 0 and film.gas.cp[i] > 0:
-                film.gas.T[i] = film.gas.T[i-1] + (tca.q1[i]-tca.q2[i])/(film.gas.mdot[i]*film.gas.cp[i])
-            else:
+                G_hot = 1.0 / (gas.resistance[i] + film.gas.resistance[i]/2) # conductance towards T_adiabatic_wall
+                
+                if film.liquid.mdot[i] > 0:                                            # two-phase: liquid film below
+                    T_low  = film.liquid.T[i]
+                    G_cold = 1.0 / (film.gas.resistance[i]/2 + film.liquid.resistance[i]/2) # conductance towards liquid film
+                else:                                                                  # vaporized: coolant below
+                    T_low  = cool.T[i]
+                    G_cold = 1.0 / (film.gas.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)
+
+                T_equilibrium = (G_hot*gas.T_adiabatic_wall[i] + G_cold*T_low) / (G_hot + G_cold)
+                NTU  = (G_hot + G_cold) / (film.gas.mdot[i] * film.gas.cp[i]) # heat exchanger constant
+                film.gas.T[i] = T_equilibrium + (film.gas.T[i-1] - T_equilibrium) * np.exp(-NTU) # law of cooling
+            else: # no gas film
                 film.gas.T[i] = film.liquid.T[i] if film.liquid.mdot[i] > 0 else cool.T[i]
-                # Set to something physically sensible so next station's property call doesn't NaN
 
-            if film.liquid.mdot[i] > 0 and film.liquid.cp[i] > 0:
-                film.liquid.T[i+1] = film.liquid.T[i] + (tca.q2[i]-tca.q3[i])/(film.liquid.mdot[i]*film.liquid.cp[i])
-            # else: leave as initialized (engine.T_amb from precompute)  
-
+            if film.gas.T[i] > gas.T_adiabatic_wall[i]:
+                raise ValueError(f"Warning: Film coolant gas temperature of {film.gas.T[i]:.2f} K exceeds adiabatic wall temperature of {gas.T_adiabatic_wall[i]:.2f} K at {tca.x[i]} m from injector")
             
+
+            if film.liquid.mdot[i] > 0 and film.liquid.cp[i] > 0 and (i+1)<len(tca.x):
+                film.liquid.T[i+1] = film.liquid.T[i] + (tca.q2[i]-tca.q3[i])/(film.liquid.mdot[i]*film.liquid.cp[i]) # liquid film gets hotter
+            else: # no liquid film
+                pass # leave as initialized
+
             if film.liquid.T[i] > film.T_sat[i]:
                 if not fuel.is_supercritical(gas.p[i]):
                     # Subcritical boiling: latent heat sink, T held at Tsat
@@ -332,8 +378,14 @@ def combustion_chamber_cooling():
             if not fuel.is_supercritical(cool.p[i]):
                 Tsat = fuel.Tsat(cool.p[i])
                 if cool.T[i] > Tsat - vapor_margin:
-                    raise ValueError(...)
+                    raise ValueError(f"Warning: Regenerative coolant has less than {vapor_margin} K vapor margin at {tca.x[i]} m from injector ({tca.x_exit-tca.x[i]} m from exit plane)")
                 
+        # Loop end conditions
+        if np.max(np.abs(jacket.T_hot - T_hot_prev)) < 1.0:   # K, tune
+            break
+        elif j == max_iterations - 1:
+            raise ValueError(f"Warning: Gas-side thermal environment did not converge after maximum iterations of {max_iterations}\n")
+        
 def interp_zeros(arr):
     """Replace zeros in a sparse array with linearly interpolated values."""
     indices = np.arange(len(arr))
