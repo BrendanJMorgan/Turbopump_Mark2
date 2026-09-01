@@ -34,7 +34,7 @@ def inducer(p) -> None:
     ind.v_axial = np.zeros(ind.n_blade) # m/s - axial component, assumed constant
     ind.v_axial = ind.flow_required / (np.pi * (ind.r_tip**2-ind.r_hub**2))   # m/s - axial component, assumed constant THIS NEEDS A BLOCKAGE CORRECTION
 
-    imp.NPSH_required = 20
+    
     ind.head = (imp.NPSH_required - ind.NPSH_available)  # m
     ind.head_coeff = ind.head * engine.g / (ind.tip_speed**2)  # unitless
     suction_specific_speed_required = p.shaft_speed * np.sqrt(ind.flow_required) / (engine.g * ind.NPSH_available)**0.75  # unitless - suction specific speed

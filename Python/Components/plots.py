@@ -1,8 +1,11 @@
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")          # no GUI windows; we render to HTML instead
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import host_subplot
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
-plt.ion()
+
+from plot_html import show_all_html
 
 from engine_state import engine, tca, gg, pump, turbine
 from powerhead import powerhead
@@ -435,5 +438,4 @@ def plots():
     print(f"ox_pump.shaft_speed: {ox_pump.shaft_speed}")
     print(f"fuel_pump.shaft_speed: {fuel_pump.shaft_speed}")
     
-    plt.show(block=False)
-    input("Press Enter to exit...")
+    show_all_html(title="Mark 2 Powerhead + TCA")

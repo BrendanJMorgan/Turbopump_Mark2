@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------
+# Turbo-electric transmission (synchronous_link.py). PM alternator on
+# the fuel/turbine shaft, PM motor on the ox shaft, series electrical
+# link with no power electronics.
+# ---------------------------------------------------------------------
+machine:
+  bus_voltage: 600.0          # V - line-neutral rms design bus
+  winding_factor: 0.95        # unitless - fundamental winding factor k_w
+  pullout_margin_min: 1.6     # unitless - minimum link pull-out margin
+  speed_lock_tol: 0.02        # unitless - warn if the pole lock shifts ox speed more than this
+  alternator:
+    pole_pairs: 2             # unitless - pole count = 4
+    efficiency: 0.94          # unitless
+    reactance_pu: 0.22        # unitless - per-unit synchronous reactance
+    resistance_phase: 0.020   # ohm - per-phase winding resistance
+    core_loss_fraction: 0.015 # unitless - crude core loss / throughput (until Steinmetz)
+    remanence: 1.08           # T - SmCo B_r (warm side)
+    recoil_permeability: 1.05 # unitless - mu_r
+    magnet_length: 0.006      # m - axial magnet thickness
+    airgap: 0.0015            # m
+    r_inner: 0.015            # m - annulus ID (centre bearing bore)
+    shear_max: 80000.0        # Pa = 80 kPa - airgap shear ceiling (Jet-A cooled)
+  motor:
+    pole_pairs: 3             # unitless - pole count = 6
+    efficiency: 0.93          # unitless
+    reactance_pu: 0.24        # unitless
+    resistance_phase: 0.018   # ohm
+    core_loss_fraction: 0.012 # unitless
+    remanence: 1.10           # T - SmCo B_r (cold side, uncoated; B_r up a touch)
+    recoil_permeability: 1.05 # unitless
+    magnet_length: 0.006      # m
+    airgap: 0.0015            # m
+    r_inner: 0.015            # m
+    shear_max: 90000.0        # Pa = 90 kPa - LOX-flooded, good cooling
+  cable:
+    length: 0.35              # m - conductor run length
+    area: 2.5e-5              # m2 = 25 mm2 conductor cross-section
+    cold_fraction: 0.6        # unitless - length fraction at cryo temperature
+    resistivity_warm: 1.9e-8  # ohm-m - Cu near ambient
+    resistivity_cold: 3.0e-9  # ohm-m - Cu at LOX temperature (cryo credit)
+    inductance: 2.0e-6        # H - series line inductance

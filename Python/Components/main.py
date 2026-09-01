@@ -7,7 +7,7 @@ from dataclasses import dataclass, asdict
 
 from thrust_chamber_assembly import thrust_chamber_assembly
 from powerhead import powerhead
-from plots import plots
+from plots_plotly import plots
 from engine_state import engine, tca, pump, turbine, gg
 
 

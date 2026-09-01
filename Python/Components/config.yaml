@@ -16,16 +16,16 @@ engine:
   fuelrp: RP1               # rocketprops only has RP-1, not Jet-A
   oxidizer: LOX             # 'O2(L)'
   proof: 1                  # proportion of fuel (remainder is water)
-  shaft_speed_cap: 2094.3951023931954   # rad/s = 20000 * pi/30 (20000 rpm)
+  shaft_speed_cap: 3142     # rad/s
   common_shaft: true        # whether the pumps share a common shaft
 
 tca:
-  dx: 0.0001                # m - position step
-  converge_angle: 0.7853981633974483   # rad = 45 * pi/180 (45 deg)
-  diverge_angle: 0.2617993877991494    # rad = 15 * pi/180 (15 deg)
+  dx: 0.001                 # m - position step
+  converge_angle: {value: 45, unit: deg}   # rad = 45 * pi/180 (45 deg)
+  diverge_angle: {value: 15, unit: deg}    # rad = 15 * pi/180 (15 deg)
   l_star: 1.5               # m - characteristic chamber length
   rc_throat: 0.025          # m - radius of curvature at the throat
-  d2_chamber: 0.15239999999999998      # m = 6 * 0.0254 (6 in)
+  d2_chamber: {value: 6, unit: in}      # m = 6 * 0.0254 (6 in)
   wall_thickness: 0.006     # m  (SLANT VS VERTICAL THICKNESS)
   pc: 5000000.0             # Pa = 50E5 - chamber (stagnation) pressure
   mixture_ratio: 2.0        # oxidizer/fuel ratio (by mass)
@@ -46,9 +46,9 @@ tca:
     n_pipe1: 64             # channels along barrel
     n_pipe2: 32             # channels near throat
     n_pipe3: 64             # channels along lower nozzle
-    gap_pipe: 0.003175      # m = 1/8 * 0.0254 (1/8 in) - fin thickness between channels
-    h_pipe: 0.002032        # m = 0.08 * 0.0254 (0.08 in) - coolant channel height
-    merge_radius: 0.057464999999999995   # m = 0.45 * (5.5*0.0254 - 2*0.006)
+    gap_pipe: {value: 0.125, unit: in}   # m = 1/8 * 0.0254 (1/8 in) - fin thickness between channels
+    h_pipe: {value: 0.08, unit: in}      # m = 0.08 * 0.0254 (0.08 in) - coolant channel height
+    merge_radius: 0.057465  # m = 0.45 * (5.5*0.0254 - 2*0.006)
     cond: 401               # W/m-K - thermal conductivity of copper
 
 gg:
@@ -61,13 +61,13 @@ gg:
   r_chamber: 0.025          # m - radius of gg combustion chamber
 
 turbine:
-  r_pitchline: 0.1143       # m = 4.5 * 0.0254 (4.5 in)
+  r_pitchline: {value: 4.5, unit: in}      # m = 4.5 * 0.0254 (4.5 in)
   gear_ratio: 1             # higher = faster/smaller turbine; 1 = common shaft
-  d_throat_nozzle: 0.0032258           # m = 0.127 * 0.0254 (0.127 in)
-  diverge_angle_gg: 0.2617993877991494 # rad = 15 * pi/180 (15 deg)
-  blade_width: 0.0127       # m = 0.5 * 0.0254 (0.5 in)
+  d_throat_nozzle: {value: 0.127, unit: in}
+  diverge_angle_gg: {value: 15, unit: deg}
+  blade_width: {value: 0.5, unit: in}      # m = 0.5 * 0.0254 (0.5 in)
   admission_fraction: 0.05555555555555555   # = 20/360 - fraction of nozzle-plate circle with nozzles
-  blade_length: 0.00635     # m = 0.25 * 0.0254 (0.25 in)
+  blade_length: {value: 0.25, unit: in}    # m = 0.25 * 0.0254 (0.25 in)
   tip_clearance: 0.0005     # m
   radius_leading: 0.002     # m - blade leading-edge fillet radius (NEEDS MORE RESEARCH)
 
@@ -89,18 +89,19 @@ pump:
       blade_thickness: 0.001    # m
       tip_clearance: 0.001      # m
       length_pitch_ratio: 2.5   # max useful value per Gulich
-      sweepback: 1.3526301702956054   # rad = (65+90)/2 * pi/180 (77.5 deg)
+      sweepback: {value: 77.5, unit: deg}   # rad = (65+90)/2 * pi/180 (77.5 deg)
     impeller:
-      hub_in_angle: -1.5707963267948966    # rad = -90 deg
-      hub_out_angle: -0.17453292519943295  # rad = -10 deg
-      shroud_in_angle: -1.5707963267948966 # rad = -90 deg
-      shroud_out_angle: 0.0                # rad = -0 deg
+      NPSH_required: 10
+      hub_in_angle: {value: -90, unit: deg}    # rad = -90 deg
+      hub_out_angle: {value: -10, unit: deg}  # rad = -10 deg
+      shroud_in_angle: {value: -90, unit: deg} # rad = -90 deg
+      shroud_out_angle: {value: 0, unit: deg}                # rad = -0 deg
       thickness: 0.003          # m
       suction_margin: 1.5
       surface_roughness: 1.0e-5 # m
     volute:
       dummy: 1.0
-      wrap_angle: 6.283185307179586   # rad = 2*pi (single volute; double = pi)
+      wrap_angle: {value: 1, unit: turn}   # rad = 2*pi (single volute; double = pi)
     tank:
       p: 250000.0               # Pa = 2.5E5
       T: 90.188                 # K
@@ -108,7 +109,7 @@ pump:
     surface_roughness: 1.0e-5   # m
     clocking: 1                 # 1 = CCW, -1 = CW (looking down at inlet)
     n_stages: 1
-    plumbing_loss: 137895.2   # Pa = 20 * 6894.76 (20 psi) - fuel only
+    plumbing_loss: {value: 20, unit: psi}   # Pa = 20 * 6894.76 (20 psi) - fuel only
     inducer:
       flow_coeff: 0.15
       blade_number: 3
@@ -120,18 +121,51 @@ pump:
       blade_thickness: 0.001    # m
       tip_clearance: 0.001      # m
       length_pitch_ratio: 2.5
-      sweepback: 1.3526301702956054   # rad = (65+90)/2 * pi/180 (77.5 deg)
+      sweepback: {value: 77.5, unit: deg}   # rad = (65+90)/2 * pi/180 (77.5 deg)
     impeller:
-      hub_in_angle: -1.5707963267948966    # rad = -90 deg
-      hub_out_angle: -0.17453292519943295  # rad = -10 deg
-      shroud_in_angle: -1.5707963267948966 # rad = -90 deg
-      shroud_out_angle: 0.0                # rad = -0 deg
+      NPSH_required: 10
+      hub_in_angle: {value: -90, unit: deg}    # rad = -90 deg
+      hub_out_angle: {value: -10, unit: deg}   # rad = -10 deg
+      shroud_in_angle: {value: -90, unit: deg} # rad = -90 deg
+      shroud_out_angle: {value: 0, unit: deg}  # rad = -0 deg
       thickness: 0.003          # m
       suction_margin: 1.5
       surface_roughness: 1.0e-5 # m
     volute:
       dummy: 1.0
-      wrap_angle: 6.283185307179586   # rad = 2*pi
+      wrap_angle: {value: 1, unit: turn}   # rad = 2*pi
     tank:
       p: 100000.0               # Pa = 1E5
       T: 293                    # K
+
+machine:
+  bus_voltage: 600.0          # V - line-neutral rms design bus
+  winding_factor: 0.95        # unitless - fundamental winding factor k_w
+  pullout_margin_min: 1.6     # unitless - minimum link pull-out margin
+  alternator:
+    reactance_perunit: 0.22        # unitless - per-unit synchronous reactance
+    resistance_phase: 0.020   # ohm - per-phase winding resistance
+    core_loss_fraction: 0.015 # unitless - crude core loss / throughput (until Steinmetz)
+    remanence: 1.08           # T - SmCo B_r (warm side)
+    relative_recoil_permeability: 1.05 # unitless - mu_r
+    magnet_length: 0.006      # m - axial magnet thickness
+    airgap: 0.0015            # m
+    r_inner: 0.015            # m - annulus ID (centre bearing bore)
+    shear_allowable: 80000.0        # Pa = 80 kPa - airgap shear ceiling (Jet-A cooled)
+  motor:
+    reactance_perunit: 0.24        # unitless
+    resistance_phase: 0.018   # ohm
+    core_loss_fraction: 0.012 # unitless
+    remanence: 1.10           # T - SmCo B_r (cold side, uncoated; B_r up a touch)
+    relative_recoil_permeability: 1.05 # unitless
+    magnet_length: 0.006      # m
+    airgap: 0.0015            # m
+    r_inner: 0.015            # m
+    shear_allowable: 90000.0        # Pa = 90 kPa - LOX-flooded, good cooling
+  cable:
+    length: 0.35              # m - conductor run length
+    area: {value: 25, unit: mm**2}   # m2 = 25 mm2 conductor cross-section
+    cold_fraction: 0.6        # unitless - length fraction at cryo temperature
+    resistivity_warm: 1.9e-8  # ohm-m - Cu near ambient
+    resistivity_cold: 3.0e-9  # ohm-m - Cu at LOX temperature (cryo credit)
+    inductance: 2.0e-6        # H - series line inductance

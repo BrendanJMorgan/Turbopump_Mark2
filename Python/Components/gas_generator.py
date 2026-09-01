@@ -29,6 +29,6 @@ def gas_generator():
 
     gg.density = cea_gg.get_Chamber_Density(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, eps=gg.Ae_At)  # kg/m3 - approximate density at chamber conditions
 
-    if gg.Tc > 1000:
+    if gg.Tc > 1100:
         raise ValueError(f"Warning: Chamber temperature of {gg.Tc} K may be too high for typical materials\n")
 

@@ -1,10 +1,12 @@
 from dataclasses import dataclass
 import numpy as np
-from engine_state import engine, tca, gg, pump, turbine
+import math
+from engine_state import engine, tca, gg, pump, turbine, motor, alternator, cable, link
 
 from pumps import pumps
 from gas_generator import gas_generator
 from turbines import turbines
+from synchronous_links import synchronous_links
 
 from CoolProp.CoolProp import PropsSI
 from rocketprops.rocket_prop import get_prop as rprop
@@ -42,16 +44,39 @@ def powerhead():
     fuel_pump.mdot  = engine.mdot_fuel_total                                            # kg/s
     fuel_pump.pvap_inlet = 6894.76*rprop_fuel.PvapAtTdegR(fuel_pump.T_in*1.8) # Pa - vapor pressure of RP1 at tank temperature
     
-    # Find Shaft Speed
+    # Find Shaft Speed suction limited caps
     ox_pump.shaft_speed = fuel_pump.shaft_speed = None
     pumps(ox_pump)
     pumps(fuel_pump)
+    # Each pump's own max allowable speed, clipped to the mechanical cap
+    ox_cap   = min(ox_pump.shaft_speed,   engine.shaft_speed_cap)
+    fuel_cap = min(fuel_pump.shaft_speed, engine.shaft_speed_cap)
 
-    ox_pump.shaft_speed = fuel_pump.shaft_speed = np.min([ox_pump.shaft_speed, fuel_pump.shaft_speed, engine.shaft_speed_cap]) # rad/s
+    max_pole_pairs = 5  # max pole pairs to allow. Set to 1 for a common shaft
+    best_utilization = (-1.0, 1, 1, 0.0)
+    for a in range(1, max_pole_pairs + 1):
+        for b in range(1, max_pole_pairs + 1):
+            if math.gcd(a, b) != 1:
+                continue
+            bus_ang_frequency = min(ox_cap*a, fuel_cap*b)          # base cable frequency
+            utilization  = min(bus_ang_frequency/a / ox_cap, bus_ang_frequency/b / fuel_cap)
+            if utilization > best_utilization[0]:
+                best_utilization = (utilization, a, b, bus_ang_frequency)
+
+    _, a, b, bus_ang_frequency = best_utilization
+    ox_pump.shaft_speed   = bus_ang_frequency/a   # rad/s
+    fuel_pump.shaft_speed = bus_ang_frequency/b   # rad/s
 
     # Actual Runs
     pumps(ox_pump)
     pumps(fuel_pump)
+
+    powerhead_link = link()
+    powerhead_link.motor = motor(fluid=ox_pump.fluid, poles=2*a, ang_frequency=ox_pump.shaft_speed, power=ox_pump.shaft_power, r_outer=0.95*ox_pump.impeller[0].r_outlet, r_inner=0.05*ox_pump.impeller[0].r_outlet)
+    powerhead_link.alternator = alternator(fluid=fuel_pump.fluid, poles=2*b, ang_frequency=fuel_pump.shaft_speed, r_outer=0.95*fuel_pump.impeller[0].r_outlet, r_inner=0.05*fuel_pump.impeller[0].r_outlet)
+    powerhead_link.cable = cable(frequency=bus_ang_frequency/(2.0*np.pi))
+
+    synchronous_links(powerhead_link)
 
     gg.pc = np.min([fuel_pump.p_out, ox_pump.p_out]) * gg.stiffness  # Pa - combustion chamber pressure guess
     gas_generator()

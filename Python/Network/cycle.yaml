@@ -1,0 +1,472 @@
+####################################################################################################
+# Mark 2 primary-flow cycle - network definition
+#
+# This file IS the model.  model.py reads it and assembles the FullFlow network;
+# diagram.py reads it and draws the wiring.  Neither hard-codes topology.
+#
+#   parameters    scalar inputs (boundary conditions, geometry, efficiencies)
+#   param_blocks  kwarg dicts spread into a component (DarcyWeisbach / orifice sets)
+#   propellants   ThermoProp names
+#   maps          large (Q, N) grids - stored in HDF5, not here (see make_pump_maps.py)
+#   states        solver unknowns and fixed boundary States (pressure / flow / scalar / temperature)
+#   elements      FullFlow flow elements and volumes, addressed by id
+#   build         ordered assembly manifest: `physics:` hooks interleaved with `element:` refs
+#
+# Reference grammar for element kwargs (resolved by model.BuildContext):
+#   p:<name>            pressure State                 m:<name>   mass-flow State
+#   t:<name>            temperature State              s:<name>   scalar State
+#   d:<name>[.attr]     physics-hook output (dotted attribute access allowed)
+#   param:<name>        entry in `parameters` or `param_blocks`
+#   {state: <ref>}      wrap a resolved value in a fresh boundary State
+#   {sum: [<ref>, ...]} sum of resolved States
+#   bare number / str   literal
+####################################################################################################
+
+name: Mark 2
+
+# --------------------------------------------------------------------------------------------------
+# scalar inputs
+# --------------------------------------------------------------------------------------------------
+parameters:
+  ambient_pressure: 93900.0            # Pa
+  ambient_temperature: 293.0           # K
+  gravity: 9.80665                     # m/s^2
+
+  oxidizer_tank_pressure: 2.5e5        # Pa   regulated ullage
+  oxidizer_tank_temperature: 90.188    # K
+  fuel_tank_pressure: 1.0e5            # Pa
+  fuel_tank_temperature: 293.0         # K
+
+  film_coolant_fraction: 0.10          # - of TCA fuel flow bypassing the core OF
+  regen_heat_load: 1.2e6               # W    source: combustion_chamber_cooling.py
+
+  throat_area: 5.0e-3                   # m^2  source: combustion_chamber_geometry.py
+  expansion_ratio: 4.0
+  c_star_efficiency: 0.85
+  thrust_coefficient_efficiency: 0.95
+  gg_c_star_efficiency: 0.75
+
+  turbine_nozzle_throat_area: 1.435e-4  # m^2  TOTAL of all nozzles
+  turbine_nozzle_discharge_coefficient: 0.95
+  turbine_efficiency: 0.40             # -, total-to-static at the design point
+  turbine_exit_pressure: 1.05e5        # Pa
+
+  pole_pair_ratio: 1.0                 # p_fuel / p_ox  ->  N_ox = N_fuel * ratio
+  alternator_efficiency: 0.94
+  cable_efficiency: 0.98
+  motor_efficiency: 0.93
+
+  fuel_shaft_inertia: 2.0e-3           # kg*m^2  (transient only)
+  oxidizer_shaft_inertia: 1.5e-3       # kg*m^2  (transient only, not wired yet)
+
+param_blocks:
+  # DarcyWeisbach kwargs: length[m], hydraulic_diameter[m], cross_sectional_area[m^2],
+  # friction_factor (Darcy, lumped f*L/D with bends folded in)
+  oxidizer_feed_line: {length: 0.60, hydraulic_diameter: 0.050, cross_sectional_area: 1.9634954085e-3, friction_factor: 0.125}
+  oxidizer_crossover: {length: 0.20, hydraulic_diameter: 0.030, cross_sectional_area: 7.068583471e-4, friction_factor: 0.290}
+  fuel_feed_line:     {length: 0.60, hydraulic_diameter: 0.040, cross_sectional_area: 1.2566370614e-3, friction_factor: 0.059}
+  fuel_mainline:      {length: 0.80, hydraulic_diameter: 0.025, cross_sectional_area: 4.908738521e-4, friction_factor: 0.085}
+  regen_jacket:       {length: 1.20, hydraulic_diameter: 0.0028, cross_sectional_area: 3.641344e-4, friction_factor: 0.031}
+
+  # DischargeCoefficient kwargs: discharge_coefficient, cross_sectional_area[m^2] (TOTAL geometric)
+  tca_oxidizer_injector: {discharge_coefficient: 0.75, cross_sectional_area: 3.00e-4}
+  gg_oxidizer_injector:  {discharge_coefficient: 0.75, cross_sectional_area: 2.66e-6}
+  main_fuel_valve:       {discharge_coefficient: 0.80, cross_sectional_area: 3.05e-4}
+  tca_fuel_injector:     {discharge_coefficient: 0.75, cross_sectional_area: 1.62e-4}
+  gg_fuel_injector:      {discharge_coefficient: 0.75, cross_sectional_area: 1.20e-5}
+
+propellants:
+  oxidizer_fluid: Oxygen        # Fluid()      real-fluid EOS, pumped side
+  fuel_propellant: RP-1         # Propellant() transport + density (ThermoProp has no liquid Jet-A)
+  oxidizer_reactant: O2(L)      # Reactants()  CEA name
+  fuel_reactant: Jet-A(L)       # Reactants()  CEA name
+
+maps:
+  oxidizer_pump: {name: Ox Pump Map,   file: pump_maps.h5, group: oxidizer}
+  fuel_pump:     {name: Fuel Pump Map, file: pump_maps.h5, group: fuel}
+
+# --------------------------------------------------------------------------------------------------
+# solver states and fixed boundary States
+# --------------------------------------------------------------------------------------------------
+states:
+  # ---- shaft ----
+  fuel_shaft_speed_rpm: {kind: scalar, guess: 30000.0, bounds: [1000, null], track: shaft/fuel_speed}
+  turbine_torque:       {kind: scalar, guess: 60.0,    bounds: [0.0, null],  track: null}
+
+  # ---- pressure: oxidizer side ----
+  ox_tank:      {kind: pressure, value: param:oxidizer_tank_pressure}
+  ox_pump_in:   {kind: pressure, guess: 2.3e5, bounds: [1.0e4, null]}
+  ox_pump_out:  {kind: pressure, guess: 6.2e6, bounds: [1.0e5, null]}
+  ox_manifold:  {kind: pressure, guess: 6.0e6, bounds: [1.0e5, null]}
+
+  # ---- pressure: fuel side ----
+  fuel_tank:           {kind: pressure, value: param:fuel_tank_pressure}
+  fuel_pump_in:        {kind: pressure, guess: 0.9e5, bounds: [1.0e4, null]}
+  fuel_pump_out:       {kind: pressure, guess: 8.0e6, bounds: [1.0e5, null]}
+  main_fuel_valve_in:  {kind: pressure, guess: 7.8e6, bounds: [1.0e5, null]}
+  fuel_manifold:       {kind: pressure, guess: 7.5e6, bounds: [1.0e5, null]}
+  jacket_out:          {kind: pressure, guess: 6.0e6, bounds: [1.0e5, null]}
+
+  # ---- pressure: combustion ----
+  chamber:        {kind: pressure, guess: 5.0e6, bounds: [1.0e5, null]}
+  gas_generator:  {kind: pressure, guess: 4.0e6, bounds: [1.0e5, null]}
+
+  # ---- mass flows ----
+  ox_feed:       {kind: flow, guess: 10.885, bounds: [0.0, null]}
+  ox_pump:       {kind: flow, guess: 10.885, bounds: [0.0, null]}
+  ox_crossover:  {kind: flow, guess: 10.885, bounds: [0.0, null]}
+  fuel_feed:     {kind: flow, guess: 5.575,  bounds: [0.0, null]}
+  fuel_pump:     {kind: flow, guess: 5.575,  bounds: [0.0, null]}
+  fuel_mainline: {kind: flow, guess: 5.575,  bounds: [0.0, null]}
+  regen:         {kind: flow, guess: 4.906,  bounds: [0.0, null]}
+
+  # ---- fixed boundary temperatures (derived temperatures are set by physics hooks) ----
+  ox_tank_T:   {kind: temperature, name: ox_tank,   value: param:oxidizer_tank_temperature}
+  fuel_tank_T: {kind: temperature, name: fuel_tank, value: param:fuel_tank_temperature}
+
+# --------------------------------------------------------------------------------------------------
+# flow elements and volumes
+# --------------------------------------------------------------------------------------------------
+elements:
+
+  # ============ oxidizer side ============
+  - id: ox_feed_line
+    name: Ox Feed Line
+    type: DarcyWeisbach
+    category: flow
+    kwargs:
+      mass_flow: m:ox_feed
+      upstream_pressure: p:ox_tank
+      downstream_pressure: p:ox_pump_in
+      density: d:oxidizer_density
+      gravitational_acceleration: param:gravity
+    spread: param:oxidizer_feed_line
+
+  - id: v_ox_pump_inlet
+    name: Ox Pump Inlet
+    type: Volume
+    category: node
+    kwargs: {pressure: p:ox_pump_in, mass_flow_in: m:ox_feed, mass_flow_out: m:ox_pump}
+
+  - id: ox_pump
+    name: Ox Pump
+    type: ConstantDensityPump
+    category: flow
+    store: ox_pump
+    kwargs:
+      mass_flow: m:ox_pump
+      rotor_speed: d:oxidizer_shaft_speed_rpm
+      head_rise: d:ox_map.head_rise
+      density: d:oxidizer_density
+      upstream_pressure: p:ox_pump_in
+      discharge_pressure: p:ox_pump_out
+      torque: d:ox_pump_torque
+      gravitational_acceleration: param:gravity
+
+  - id: v_ox_pump_discharge
+    name: Ox Pump Discharge
+    type: Volume
+    category: node
+    kwargs: {pressure: p:ox_pump_out, mass_flow_in: m:ox_pump, mass_flow_out: m:ox_crossover}
+
+  - id: ox_crossover
+    name: Ox Crossover
+    type: DarcyWeisbach
+    category: flow
+    kwargs:
+      mass_flow: m:ox_crossover
+      upstream_pressure: p:ox_pump_out
+      downstream_pressure: p:ox_manifold
+      density: d:oxidizer_density
+      gravitational_acceleration: param:gravity
+    spread: param:oxidizer_crossover
+
+  # ============ fuel side ============
+  - id: fuel_feed_line
+    name: Fuel Feed Line
+    type: DarcyWeisbach
+    category: flow
+    kwargs:
+      mass_flow: m:fuel_feed
+      upstream_pressure: p:fuel_tank
+      downstream_pressure: p:fuel_pump_in
+      density: d:fuel_density
+      gravitational_acceleration: param:gravity
+    spread: param:fuel_feed_line
+
+  - id: v_fuel_pump_inlet
+    name: Fuel Pump Inlet
+    type: Volume
+    category: node
+    kwargs: {pressure: p:fuel_pump_in, mass_flow_in: m:fuel_feed, mass_flow_out: m:fuel_pump}
+
+  - id: fuel_pump
+    name: Fuel Pump
+    type: ConstantDensityPump
+    category: flow
+    store: fuel_pump
+    kwargs:
+      mass_flow: m:fuel_pump
+      rotor_speed: s:fuel_shaft_speed_rpm
+      head_rise: d:fuel_map.head_rise
+      density: d:fuel_density
+      upstream_pressure: p:fuel_pump_in
+      discharge_pressure: p:fuel_pump_out
+      torque: d:fuel_pump_torque
+      gravitational_acceleration: param:gravity
+
+  - id: v_fuel_pump_discharge
+    name: Fuel Pump Discharge
+    type: Volume
+    category: node
+    kwargs: {pressure: p:fuel_pump_out, mass_flow_in: m:fuel_pump, mass_flow_out: m:fuel_mainline}
+
+  - id: fuel_mainline
+    name: Fuel Mainline
+    type: DarcyWeisbach
+    category: flow
+    kwargs:
+      mass_flow: m:fuel_mainline
+      upstream_pressure: p:fuel_pump_out
+      downstream_pressure: p:main_fuel_valve_in
+      density: d:fuel_density
+      gravitational_acceleration: param:gravity
+    spread: param:fuel_mainline
+
+  - id: main_fuel_valve
+    name: Main Fuel Valve
+    type: DischargeCoefficient
+    category: flow
+    store: main_fuel_valve
+    exports: {mass_flow: "m:main_fuel_valve"}
+    kwargs:
+      upstream_pressure: p:main_fuel_valve_in
+      downstream_pressure: p:fuel_manifold
+      density: d:fuel_density
+    spread: param:main_fuel_valve
+
+  - id: v_fuel_mainline_end
+    name: Fuel Mainline End
+    type: Volume
+    category: node
+    kwargs: {pressure: p:main_fuel_valve_in, mass_flow_in: m:fuel_mainline, mass_flow_out: m:main_fuel_valve}
+
+  - id: gg_fuel_injector
+    name: GG Fuel Injector
+    type: DischargeCoefficient
+    category: flow
+    store: gg_fuel_injector
+    exports: {mass_flow: "m:gg_fuel"}
+    kwargs:
+      upstream_pressure: p:fuel_manifold
+      downstream_pressure: p:gas_generator
+      density: d:fuel_density
+    spread: param:gg_fuel_injector
+
+  - id: v_fuel_manifold
+    name: Fuel Manifold
+    type: Volume
+    category: node
+    kwargs:
+      pressure: p:fuel_manifold
+      mass_flow_in: m:main_fuel_valve
+      mass_flow_out: {sum: [m:regen, m:gg_fuel]}
+
+  - id: regen_jacket
+    name: Regen Jacket
+    type: DarcyWeisbach
+    category: flow
+    kwargs:
+      mass_flow: m:regen
+      upstream_pressure: p:fuel_manifold
+      downstream_pressure: p:jacket_out
+      density: d:fuel_density
+      gravitational_acceleration: param:gravity
+    spread: param:regen_jacket
+
+  - id: tca_fuel_injector
+    name: TCA Fuel Injector
+    type: DischargeCoefficient
+    category: flow
+    store: tca_fuel_injector
+    exports: {mass_flow: "m:tca_fuel"}
+    kwargs:
+      upstream_pressure: p:jacket_out
+      downstream_pressure: p:chamber
+      density: d:fuel_density
+    spread: param:tca_fuel_injector
+
+  - id: v_fuel_injector_manifold
+    name: Fuel Injector Manifold
+    type: Volume
+    category: node
+    kwargs: {pressure: p:jacket_out, mass_flow_in: m:regen, mass_flow_out: m:tca_fuel}
+
+  - id: tca_ox_injector
+    name: TCA Ox Injector
+    type: DischargeCoefficient
+    category: flow
+    store: tca_ox_injector
+    exports: {mass_flow: "m:tca_ox"}
+    kwargs:
+      upstream_pressure: p:ox_manifold
+      downstream_pressure: p:chamber
+      density: d:oxidizer_density
+    spread: param:tca_oxidizer_injector
+
+  - id: gg_ox_injector
+    name: GG Ox Injector
+    type: DischargeCoefficient
+    category: flow
+    store: gg_ox_injector
+    exports: {mass_flow: "m:gg_ox"}
+    kwargs:
+      upstream_pressure: p:ox_manifold
+      downstream_pressure: p:gas_generator
+      density: d:oxidizer_density
+    spread: param:gg_oxidizer_injector
+
+  - id: v_ox_manifold
+    name: Ox Manifold
+    type: Volume
+    category: node
+    kwargs:
+      pressure: p:ox_manifold
+      mass_flow_in: m:ox_crossover
+      mass_flow_out: {sum: [m:tca_ox, m:gg_ox]}
+
+  # ============ chamber / nozzle ============
+  - id: nozzle
+    name: Nozzle
+    type: IsentropicNozzle
+    category: flow
+    store: nozzle
+    exports: {mass_flow: "m:nozzle"}
+    kwargs:
+      upstream_total_pressure: p:chamber
+      upstream_total_temperature: d:tca_total_temperature
+      ambient_pressure: {state: param:ambient_pressure}
+      specific_heat_ratio: d:tca_combustion.specific_heat_ratio
+      gas_constant: d:tca_combustion.gas_constant
+      throat_area: param:throat_area
+      expansion_ratio: param:expansion_ratio
+
+  - id: v_chamber
+    name: Chamber
+    type: Volume
+    category: node
+    kwargs:
+      pressure: p:chamber
+      mass_flow_in: {sum: [m:tca_ox, m:tca_fuel]}
+      mass_flow_out: m:nozzle
+
+  # ============ gas generator / turbine ============
+  - id: turbine_flow_parameter
+    name: Turbine Nozzle Flow Parameter
+    type: ChokedFlowParameter
+    category: internal
+    store: turbine_flow_parameter
+    exports: {flow_parameter: "d:turbine_flow_parameter"}
+    kwargs:
+      throat_area: param:turbine_nozzle_throat_area
+      discharge_coefficient: param:turbine_nozzle_discharge_coefficient
+      specific_heat_ratio: d:gg_combustion.specific_heat_ratio
+
+  - id: turbine
+    name: Turbine
+    type: GasTurbine
+    category: flow
+    store: turbine
+    exports: {mass_flow: "m:turbine"}
+    kwargs:
+      rotor_speed: s:fuel_shaft_speed_rpm
+      torque: s:turbine_torque
+      flow_parameter: d:turbine_flow_parameter
+      upstream_total_pressure: p:gas_generator
+      upstream_total_temperature: d:gg_total_temperature
+      downstream_pressure: {state: param:turbine_exit_pressure}
+      gas_constant: d:gg_combustion.gas_constant
+      specific_heat_ratio: d:gg_combustion.specific_heat_ratio
+
+  - id: v_gas_generator
+    name: Gas Generator
+    type: Volume
+    category: node
+    kwargs:
+      pressure: p:gas_generator
+      mass_flow_in: {sum: [m:gg_ox, m:gg_fuel]}
+      mass_flow_out: m:turbine
+
+  # ============ shaft ============
+  - id: link
+    name: SynchroLink
+    type: SynchronousLink
+    category: shaft
+    store: link
+    exports:
+      drive_shaft_torque: "d:link_reaction_torque"
+      electrical_power: "d:electrical_power"
+    kwargs:
+      drive_shaft_speed_rpm: s:fuel_shaft_speed_rpm
+      driven_shaft_speed_rpm: d:oxidizer_shaft_speed_rpm
+      driven_shaft_torque: d:ox_pump_torque
+      alternator_efficiency: param:alternator_efficiency
+      cable_efficiency: param:cable_efficiency
+      motor_efficiency: param:motor_efficiency
+
+  - id: fuel_shaft
+    name: Fuel Shaft
+    type: Rotor
+    category: shaft
+    store: fuel_shaft
+    kwargs:
+      rotor_speed: s:fuel_shaft_speed_rpm
+      polar_moment_of_inertia: param:fuel_shaft_inertia
+      net_torque: d:net_torque
+
+# --------------------------------------------------------------------------------------------------
+# assembly manifest - order matters; hooks populate `d:` outputs the elements consume
+# --------------------------------------------------------------------------------------------------
+build:
+  - physics: shaft_speeds
+  - physics: oxidizer_inlet
+  - element: ox_feed_line
+  - element: v_ox_pump_inlet
+  - physics: oxidizer_pump
+  - element: ox_pump
+  - element: v_ox_pump_discharge
+  - element: ox_crossover
+
+  - physics: fuel_inlet
+  - element: fuel_feed_line
+  - element: v_fuel_pump_inlet
+  - physics: fuel_pump
+  - element: fuel_pump
+  - element: v_fuel_pump_discharge
+  - element: fuel_mainline
+  - element: main_fuel_valve
+  - element: v_fuel_mainline_end
+
+  - element: gg_fuel_injector
+  - element: v_fuel_manifold
+  - element: regen_jacket
+  - physics: regen
+  - element: tca_fuel_injector
+  - element: v_fuel_injector_manifold
+  - element: tca_ox_injector
+  - element: gg_ox_injector
+  - element: v_ox_manifold
+
+  - physics: combustion
+  - element: nozzle
+  - element: v_chamber
+
+  - element: turbine_flow_parameter
+  - element: turbine
+  - element: v_gas_generator
+  - physics: turbine_balance
+
+  - element: link
+  - physics: shaft_balance
+  - element: fuel_shaft
+  - physics: performance
