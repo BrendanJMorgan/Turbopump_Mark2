@@ -26,8 +26,8 @@ in `physics.py` when a new derived quantity needs an equation.  `inputs.py`
 
 | unknown | residual |
 | --- | --- |
-| 7 branch mass flows (feed lines, crossover, mainline, jacket) | DarcyWeisbach momentum |
-| 9 node pressures | Volume mass balances |
+| 5 branch mass flows (feed lines, crossover, mainline, jacket) | DarcyWeisbach momentum |
+| 10 node pressures (incl. chamber and GG) | Volume mass balances |
 | 2 pump mass flows | pump-curve discharge-pressure error |
 | fuel shaft speed | fuel shaft torque balance |
 | turbine torque | turbine efficiency error |

@@ -24,9 +24,9 @@
 
 name: Mark 2
 
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 # scalar inputs
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 parameters:
   ambient_pressure: 93900.0            # Pa
   ambient_temperature: 293.0           # K
@@ -85,21 +85,21 @@ maps:
   oxidizer_pump: {name: Ox Pump Map,   file: pump_maps.h5, group: oxidizer}
   fuel_pump:     {name: Fuel Pump Map, file: pump_maps.h5, group: fuel}
 
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 # solver states and fixed boundary States
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 states:
-  # ---- shaft ----
+  ### shaft ----
   fuel_shaft_speed_rpm: {kind: scalar, guess: 30000.0, bounds: [1000, null], track: shaft/fuel_speed}
   turbine_torque:       {kind: scalar, guess: 60.0,    bounds: [0.0, null],  track: null}
 
-  # ---- pressure: oxidizer side ----
+  ### pressure: oxidizer side ----
   ox_tank:      {kind: pressure, value: param:oxidizer_tank_pressure}
   ox_pump_in:   {kind: pressure, guess: 2.3e5, bounds: [1.0e4, null]}
   ox_pump_out:  {kind: pressure, guess: 6.2e6, bounds: [1.0e5, null]}
   ox_manifold:  {kind: pressure, guess: 6.0e6, bounds: [1.0e5, null]}
 
-  # ---- pressure: fuel side ----
+  ### pressure: fuel side ----
   fuel_tank:           {kind: pressure, value: param:fuel_tank_pressure}
   fuel_pump_in:        {kind: pressure, guess: 0.9e5, bounds: [1.0e4, null]}
   fuel_pump_out:       {kind: pressure, guess: 8.0e6, bounds: [1.0e5, null]}
@@ -107,11 +107,11 @@ states:
   fuel_manifold:       {kind: pressure, guess: 7.5e6, bounds: [1.0e5, null]}
   jacket_out:          {kind: pressure, guess: 6.0e6, bounds: [1.0e5, null]}
 
-  # ---- pressure: combustion ----
+  ### pressure: combustion ----
   chamber:        {kind: pressure, guess: 5.0e6, bounds: [1.0e5, null]}
   gas_generator:  {kind: pressure, guess: 4.0e6, bounds: [1.0e5, null]}
 
-  # ---- mass flows ----
+  ### mass flows ----
   ox_feed:       {kind: flow, guess: 10.885, bounds: [0.0, null]}
   ox_pump:       {kind: flow, guess: 10.885, bounds: [0.0, null]}
   ox_crossover:  {kind: flow, guess: 10.885, bounds: [0.0, null]}
@@ -120,13 +120,13 @@ states:
   fuel_mainline: {kind: flow, guess: 5.575,  bounds: [0.0, null]}
   regen:         {kind: flow, guess: 4.906,  bounds: [0.0, null]}
 
-  # ---- fixed boundary temperatures (derived temperatures are set by physics hooks) ----
+  ### fixed boundary temperatures (derived temperatures are set by physics hooks) ----
   ox_tank_T:   {kind: temperature, name: ox_tank,   value: param:oxidizer_tank_temperature}
   fuel_tank_T: {kind: temperature, name: fuel_tank, value: param:fuel_tank_temperature}
 
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 # flow elements and volumes
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 elements:
 
   # ============ oxidizer side ============
@@ -424,9 +424,9 @@ elements:
       polar_moment_of_inertia: param:fuel_shaft_inertia
       net_torque: d:net_torque
 
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 # assembly manifest - order matters; hooks populate `d:` outputs the elements consume
-# --------------------------------------------------------------------------------------------------
+###----------------------------------------------------------------------------------------------
 build:
   - physics: shaft_speeds
   - physics: oxidizer_inlet

@@ -19,9 +19,6 @@ import math
 from fullflow import Balance, Lookup
 from thermoprop import Equilibrium, Fluid, Propellant, Reactants
 
-_RPM_TO_RAD = math.pi / 30.0
-
-
 # ----------------------------------------------------------------------------
 # shafts
 # ----------------------------------------------------------------------------
@@ -31,8 +28,8 @@ def shaft_speeds(ctx) -> None:
     ox_speed = fuel_speed * ctx.params["pole_pair_ratio"]
 
     ctx.derived["oxidizer_shaft_speed_rpm"] = ox_speed
-    ctx.derived["fuel_omega"] = fuel_speed * _RPM_TO_RAD
-    ctx.derived["oxidizer_omega"] = ox_speed * _RPM_TO_RAD
+    ctx.derived["fuel_omega"] = fuel_speed * math.pi / 30.0
+    ctx.derived["oxidizer_omega"] = ox_speed * math.pi / 30.0
     ctx.track("shaft/oxidizer_speed", ox_speed)
 
 

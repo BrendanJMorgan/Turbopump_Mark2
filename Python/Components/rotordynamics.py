@@ -120,4 +120,4 @@ for i, wn in enumerate(modal.wn[:6]):
           f"({wn/(2*np.pi)*60:8.0f} rpm)   "
           f"zeta = {modal.damping_ratio[i]:.4f}")
 
-print(f"\nOperating speed: {shaft_speed} rpm = {shaft_speed/(2*np.pi):.1f} Hz")
+print(f"\nOperating speed: {shaft_speed*30/np.pi:.0f} rpm = {shaft_speed/(2*np.pi):.1f} Hz")

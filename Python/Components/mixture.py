@@ -16,9 +16,9 @@ STATE_CACHE = {} # builds a cache of CoolProp state objects for each species to 
 SPECIES = {
     "*CO":  ("CarbonMonoxide", 28.01,    81.65,  True),
     "*CO2": ("CarbonDioxide",  44.01,   194.65,  False),
-    "*H2":  ("Hydrogen",        1.00794,  20.28,  False),
+    "*H2":  ("Hydrogen",        2.01588,  20.28,  False),
     "H2O":  ("Water",          18.01528, 373.1,   True),
-    "O2":   ("Oxygen",         15.999,    90.19,  False),
+    "*O2":   ("Oxygen",         31.9988,    90.19,  False),
     "C2H4": ("Ethylene",       28.05,    169.5,   False),
     "C2H6": ("Ethane",         30.07,    184.2,   False),
 }
@@ -98,7 +98,7 @@ def mixture(cea_compounds, fractions, T_ref: float, p_ref: float):
         return 0.0, 0.0, 0.0, 0.0
 
     fractions_array  = np.asarray(fractions_list)
-    density_array    = np.asarray(cp_list)
+    cp_array    = np.asarray(cp_list)
     viscosity_array  = np.asarray(visc_list)
     k_array          = np.asarray(cond_list)
     density_array    = np.asarray(dens_list)
@@ -113,7 +113,7 @@ def mixture(cea_compounds, fractions, T_ref: float, p_ref: float):
 
     molar_fractions = fractions_array / fractions_array.sum()                                    # mole fractions
     mass_fractions = molar_fractions * mol_weight_array / np.dot(molar_fractions, mol_weight_array)                   # mass fractions
-    specific_heat     = np.dot(density_array, mass_fractions)                         # J/kg-K, mass-weighted
+    specific_heat     = np.dot(cp_array, mass_fractions)                         # J/kg-K, mass-weighted
     density = p_ref * np.dot(molar_fractions, mol_weight_array) / (8.3145 * T_ref)   # ideal gas, kg/m3
 
     #######################################################################################################
@@ -127,7 +127,6 @@ def mixture(cea_compounds, fractions, T_ref: float, p_ref: float):
     phi = (np.sqrt(2.0) / 4.0) * (1.0 + np.sqrt(viscosity_ratio) * mol_weight_ratio**0.25)**2 / np.sqrt(1.0 + w_sum_ratio)
     np.fill_diagonal(phi, 0.0)  # exclude j == i terms
 
-    denom = fractions_array[None, :] + phi @ fractions_array  # wrong shape; fix:
     denom = fractions_array + phi @ fractions_array
     viscosity = np.sum(fractions_array * viscosity_array / denom)
 

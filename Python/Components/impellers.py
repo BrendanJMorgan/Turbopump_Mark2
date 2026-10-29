@@ -7,6 +7,7 @@ from scipy.interpolate import PchipInterpolator
 from scipy.optimize import minimize
 from scipy.optimize import differential_evolution
 from scipy.optimize import brute, minimize
+from scipy.optimize import fsolve
 import matplotlib.pyplot as plt
 
 from blades import blades
@@ -16,17 +17,22 @@ from typing import List
 def impellers(p: pump):
     imp = p.impeller[0]  # Currently only single stage pumps are supported
     ind = p.inducer
-    imp.head_rise = p.head_rise  # assign head rise to impeller object
+    imp.NPSP_available = imp.NPSH_available * p.density * engine.g
+    imp.p_in = imp.NPSP_available + p.pvap_inlet
+    imp.p_out = p.p_out
+    imp.p_rise = p.p_out - imp.p_in  
+    imp.head_rise = imp.p_rise / (p.density * engine.g) # m - discharge head above vapor minus nominal impeller inlet head above vapor
 
     #######################################################################################################
     ### Basic Sizing
     #######################################################################################################
     imp.specific_speed = abs(p.shaft_speed) * np.sqrt(p.vdot) / (engine.g * imp.head_rise) ** 0.75 # unitless 
 
-    imp.specific_speed_imperial = imp.specific_speed * 229.6        # Ns pseudo unitless
-
     ft = 1.0; # unitless - could range to 1.1 to be more aggressive on head, on low head pumps
-    imp.head_coeff = 0.5 * 1.21 * ft * np.exp(-0.408 * imp.specific_speed)  # unitless - psi_op; eqn 3.26 in Gulich THIS IS TECHNICALLY ONLY FOR SINGLE STAGE PUMPS
+    if len(p.impeller) == 1:
+        imp.head_coeff = 0.5 * 1.21 * ft * np.exp(-0.408 * imp.specific_speed)  # unitless - psi_op [US form of head coefficient]; Gulich eqn 3.26
+    else:
+        raise ValueError(f"Only single stage impellers are currently supported. {len(p.impeller)} stages were provided.")
     imp.shutoff_coeff = 1.25; # 1.25 for volute designs and 1.31 for diffuser designs (kept as input)
     imp.shutoff_head_coeff = 0.5 * imp.shutoff_coeff * 0.625 * np.exp(-4.15 * imp.specific_speed) # unitless - psi_0 in the limit pf Q=0
 
@@ -34,19 +40,24 @@ def impellers(p: pump):
     if imp.specific_speed < 0.1 or imp.specific_speed > 0.6:
         print(f"{p.fluid} impeller specific speed is {round(imp.specific_speed,2)}. Recommended is 0.1 to 0.6 for centrifugal geometries.")
 
+    ### OUTLET #######################################################################################################   
     imp.r_outlet = 1 / abs(p.shaft_speed) * np.sqrt (engine.g*imp.head_rise / imp.head_coeff); # m - impeller exit radius, Gulich eqn 7.1.3
+    imp.width_outlet = 2*imp.r_outlet * (0.017 + 0.1386*imp.specific_speed - 0.022387*imp.specific_speed**2 + 0.0013767*imp.specific_speed**3) # m - outlet width; empirical; Gulich eqn 7.1
 
-    if imp.r_outlet < ind.r_tip[-1]:
-        raise ValueError(f"Impeller outlet radius {round(imp.r_outlet,3)} m is smaller than inducer tip radius {round(ind.r_tip,3)} m")
-
-    r_eye_margin = 1.15 + 0.2116*(imp.specific_speed-0.2836); # unitless - margin correction factor, Gulich 7.1.4; interpolated for a normal impeller (not a suction impeller)
-    swirl_number = 0.5; # NEEDS TO BE ITERATIVE 
+    ### INLET #######################################################################################################
+    r_eye_margin = 1.15 - 0.2116*(imp.specific_speed-0.2836); # unitless - margin correction factor, Gulich 7.1.4; interpolated for a normal impeller (not a suction impeller)
     
-    imp.r_inlet = ind.r_tip[-1]
+    # imp.r_inlet = ind.r_tip[-1]
     imp.vdot = p.vdot # m3/s - MIGHT NEED TO UPDATE THIS ASSUMPTION WHEN IMPLEMENTING SECONDARY FLOWS
     imp.r_hub = ind.r_hub[-1]
 
-    imp.w_outlet = 2*imp.r_outlet * (0.017 + 0.1386*imp.specific_speed - 0.022387*imp.specific_speed**2 + 0.0013767*imp.specific_speed**3) # m - outlet width; empirical; Gulich eqn 7.1
+    efficiency_volumetric = 1.0  # unitless - PLACEHOLDER until leakage is modelled
+    swirl_factor = 1.0           # unitless - 1 = no pre-swirl; PLACEHOLDER until inducer exit swirl is passed through
+    hub_ratio = imp.r_hub / imp.r_outlet  # unitless
+    imp.r_inlet = imp.r_outlet * r_eye_margin * np.sqrt(hub_ratio**2 + 0.290 * 2 * imp.head_coeff * imp.specific_speed**1.33 / (efficiency_volumetric * swirl_factor)**0.67)  # m - eye (shroud) radius - Gulich 7.1.4
+    if imp.r_outlet < imp.r_inlet:
+        raise ValueError(f"Impeller outlet radius {round(imp.r_outlet,3)} m is smaller than impeller eye radius {round(imp.r_inlet,3)} m")
+
 
     # this needs boundary layer and leakage effect - pg 2.60?
     # could parameterize a width at each station with a blockage vector
@@ -71,7 +82,7 @@ def impellers(p: pump):
 
     imp.hub_curve = np.nan * np.ones_like(imp.shroud_curve)  # [m,m] - initialize hub curve array with NaNs
     imp.hub_curve[0,:] = [imp.r_hub, 0.0]  # m - starting point of hub curve at inlet
-    imp.hub_curve[-1,:] = [imp.r_outlet, imp.shroud_curve[-1,1] - imp.w_outlet]  # m - end point of hub curve at outlet
+    imp.hub_curve[-1,:] = [imp.r_outlet, imp.shroud_curve[-1,1] - imp.width_outlet]  # m - end point of hub curve at outlet
 
     tangents_meanline = np.gradient(imp.shroud_curve, axis=0) # rad
     normals_meanline = np.column_stack([tangents_meanline[:, 1], -tangents_meanline[:, 0]]) / np.linalg.norm(tangents_meanline, axis=1)[:, np.newaxis] # rad

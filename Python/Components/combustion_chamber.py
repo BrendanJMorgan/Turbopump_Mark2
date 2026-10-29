@@ -16,10 +16,10 @@ def combustion_chamber():
                             frozen=0, frozenAtThroat=0, short_output=0, show_transport=1,
                             pc_units='bar', output='calories', show_mass_frac=False,
                             fac_CR= (tca.r1_chamber/tca.r_throat)**2)  # Finite area combustor
-    tca.c_star_ideal = float(py_cea.rockt.cstr) # m/s - Characteristic Velocity from infinite area combustor
+    tca.c_star_ideal = float(py_cea.rockt.cstr) / 3.28084 # m/s (CEA reports c* in ft/s) - Characteristic Velocity from infinite area combustor
     tca.Ae_At = py_cea.rockt.aeat[3]
     tca.gamma_avg_nozzle = (py_cea.prtout.gammas[2] + py_cea.prtout.gammas[3]) / 2 # Ratio of Specific Heats, estimate
-    tca.R_gas = 8.3145 / (py_cea.prtout.wm[2])  # J/kg-K - Specific Gas Constant (throat)
+    tca.R_gas = 8314.5 / (py_cea.prtout.wm[2])  # J/kg-K (wm is g/mol, so R_u in J/kmol-K) - Specific Gas Constant (throat)
 
     # Performance Parameters -----------------------------------------------------------------------------------
     lambda_cone = 0.5*(1+np.cos(tca.diverge_angle))         # Divergence correction factor for conical nozzle
@@ -32,13 +32,23 @@ def combustion_chamber():
     tca.v_exhaust = tca.c_star * tca.c_tau  # m/s - Exhaust Velocity
 
     # Mass Flow Rates ----------------------------------------------------------------------------------------------
-    tca.Tt = py_cea.prtout.ttt[0]                       # K - stagnation temperature at chamber
-    tca.mdot = engine.thrust / (tca.c_star * tca.c_tau) # kg/s - Mass Flow Rate
-    tca.mdot_fuel = tca.mdot*(1/(1+tca.mixture_ratio))             # kg/s - Fuel Mass Flow Rate
-    tca.mdot_ox = tca.mdot*(tca.mixture_ratio/(1+tca.mixture_ratio))          # kg/s - Oxidizer Mass Flow Rate
+    tca.Tt = py_cea.prtout.ttt[0]                                       # K - stagnation temperature at chamber
+    tca.mdot = engine.thrust / (tca.c_star * tca.c_tau)                 # kg/s - Mass Flow Rate
+    tca.mdot_fuel = tca.mdot*(1/(1+tca.mixture_ratio))                  # kg/s - Fuel Mass Flow Rate
+    tca.mdot_ox = tca.mdot*(tca.mixture_ratio/(1+tca.mixture_ratio))    # kg/s - Oxidizer Mass Flow Rate
 
-    # Transport Species
-    molwt, mf = cea_cc.get_SpeciesMoleFractions(Pc=tca.pc/1e5, MR=tca.mixture_ratio, eps=tca.Ae_At, frozen=0, frozenAtThroat=0, min_fraction=1e-6)
-    tca.combustion_gas.cea_molar_weight = molwt            # dict: name -> g/mol
-    tca.combustion_gas.cea_molar_fractions = mf      # dict: name -> [mole frac per CEA station]
+    # Transport Species ----------------------------------------------------------------------------------------------
+    tca.combustion_gas.cea_molar_weight = {}
+    tca.combustion_gas.cea_molar_fractions   = {}
+    
+    stations = slice(0, 4) # injector, combustor end, throat, exit (finite-area run above)
+    for species in range(1, py_cea.indx.ngc):
+        species_name = py_cea.cdata.prod[species].decode("utf-8").strip()
+        # cdata.prod is offset by one from comp.en / therm.mw (checked against get_SpeciesMoleFractions)
+        fractions = np.round(py_cea.comp.en[species-1, stations] / py_cea.prtout.totn[stations], 6) # mole fractions per station
+        if species_name and np.any(fractions > 0):
+            tca.combustion_gas.cea_molar_fractions[species_name] = fractions
+            tca.combustion_gas.cea_molar_weight[species_name]    = py_cea.therm.mw[species-1] # g/mol
+
+
 

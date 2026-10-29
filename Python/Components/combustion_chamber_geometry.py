@@ -33,9 +33,9 @@ def combustion_chamber_geometry():
     # Contours ----------------------------------------------------------------------------------------------------
     x1_throat = 0.5*(tca.d1_chamber-tca.d_throat)/np.tan(tca.converge_angle) + tca.l_chamber
         # m - Projected point, onto central axis, of the converging straight line contour IF throat had no curvature
-    x2_throat = x1_throat + tca.r_throat*(np.sin(tca.converge_angle)+1/np.tan(tca.converge_angle)*(np.cos(tca.converge_angle)-1))
+    x2_throat = x1_throat + tca.rc_throat*(np.sin(tca.converge_angle)+1/np.tan(tca.converge_angle)*(np.cos(tca.converge_angle)-1))
         # m - Central point of the throat
-    x3_throat = x2_throat + tca.r_throat*(np.sin(tca.diverge_angle)+1/np.tan(tca.diverge_angle)*(np.cos(tca.diverge_angle)-1))
+    x3_throat = x2_throat + tca.rc_throat*(np.sin(tca.diverge_angle)+1/np.tan(tca.diverge_angle)*(np.cos(tca.diverge_angle)-1))
         # m - Projected point, onto central axis, of the diverging straight line contour IF throat had no curvature
 
     tca.x_exit = x3_throat + 0.5*(tca.d_exit-tca.d_throat)/np.tan(tca.diverge_angle) # Position of nozzle exit, aka length of the entire chamber + nozzle SUSSSSSSSSS
@@ -53,9 +53,9 @@ def combustion_chamber_geometry():
     tca.r1[index_x3:] = 0.5 * (tca.d_exit - tca.d_throat) * ( (tca.x[index_x3:] - tca.x[index_x3]) / (tca.x[-1] - tca.x[index_x3]) ) + 0.5 * tca.d_throat # m
 
     # Throat Arc
-    x_arc = np.arange(-tca.r_throat*np.sin(tca.converge_angle), tca.r_throat*np.sin(tca.diverge_angle), tca.dx)  # m
+    x_arc = np.arange(-tca.rc_throat*np.sin(tca.converge_angle), tca.rc_throat*np.sin(tca.diverge_angle), tca.dx)  # m
 
-    throat_arc = 0.5 * tca.d_throat - np.sqrt(tca.r_throat**2 - x_arc**2) + tca.r_throat # m
+    throat_arc = 0.5 * tca.d_throat - np.sqrt(tca.rc_throat**2 - x_arc**2) + tca.rc_throat # m
     index_throat = np.argmin(throat_arc) # index of throat minimum
     index_x2 = int(np.ceil(x2_throat/tca.dx))
     tca.r1[index_x2-index_throat : index_x2 + len(x_arc) - index_throat] = throat_arc

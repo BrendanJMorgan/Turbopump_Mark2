@@ -1,171 +1,198 @@
-# =====================================================================
+#######################################################################################################
 # Mark 2 engine input parameters (primitives).
 #
 # Derived quantities computed in engine_state.py
 #
-# All values are SI base units. The trailing
-# comment shows the original natural-unit expression for readability.
-# =====================================================================
+# Every numeric quantity is {value, unit}; engine_state.py converts each to
+# base SI via pint (baseunit). Use "dimensionless" for pure ratios and counts.
+# Custom units (defined in engine_state.py): specific_speed_US (rpm, gpm, ft),
+# specific_speed_EU (rpm, m3/s, m - Gulich n_q / n_ss); base = dimensionless
+# w*sqrt(Q)/(gH)^0.75. Strings and booleans are plain values.
+#######################################################################################################
 
 engine:
-  g: 9.80665                # m/s^2
-  thrust: 40000             # N - INCLUDES GG exhaust thrust
-  p_amb: 93900              # Pa - ambient pressure at 2100 ft elevation
-  T_amb: 293                # K
-  fuel: JetA                # 'JetA' or 'C2H5OH(L)'
-  fuelrp: RP1               # rocketprops only has RP-1, not Jet-A
-  oxidizer: LOX             # 'O2(L)'
-  proof: 1                  # proportion of fuel (remainder is water)
-  shaft_speed_cap: 3142     # rad/s
-  common_shaft: true        # whether the pumps share a common shaft
+  g:        {value: 9.80665, unit: m/s**2}
+  thrust:   {value: 30000, unit: N}           # Includes GG exhaust thrust
+  p_amb:    {value: 93900, unit: Pa}          # ambient pressure at 2100 ft elevation
+  T_amb:    {value: 293, unit: K}
+  fuel:     JetA                              # 'JetA' or 'C2H5OH(L)'
+  fuelrp:   RP1                               # rocketprops only has RP-1, not Jet-A
+  oxidizer: LOX                               # 'O2(L)'
+  proof:    {value: 1, unit: dimensionless}   # proportion of fuel (remainder is water)
+  shaft_speed_cap: {value: 5000, unit: rad/s}
+  common_shaft: true                          # whether the pumps share a common shaft
 
 tca:
-  dx: 0.001                 # m - position step
-  converge_angle: {value: 45, unit: deg}   # rad = 45 * pi/180 (45 deg)
-  diverge_angle: {value: 15, unit: deg}    # rad = 15 * pi/180 (15 deg)
-  l_star: 1.5               # m - characteristic chamber length
-  rc_throat: 0.025          # m - radius of curvature at the throat
-  d2_chamber: {value: 6, unit: in}      # m = 6 * 0.0254 (6 in)
-  wall_thickness: 0.006     # m  (SLANT VS VERTICAL THICKNESS)
-  pc: 5000000.0             # Pa = 50E5 - chamber (stagnation) pressure
-  mixture_ratio: 2.0        # oxidizer/fuel ratio (by mass)
-  c_star_efficiency: 0.85   # characteristic velocity efficiency, experimental
-  c_tau_efficiency: 0.95    # thrust coefficient efficiency, experimental
-  compute_thermals: true    # run regen thermal balance (increases runtime)
+  dx:                 {value: 0.001, unit: m}                  # position step
+  converge_angle:     {value: 45, unit: deg}       # half-cone convergence angle
+  diverge_angle:      {value: 15, unit: deg}        # half-cone divergence angle
+  l_star:             {value: 1.5, unit: m}                # characteristic chamber length
+  rc_throat:          {value: 0.025, unit: m}           # radius of curvature at the throat
+  d2_chamber:         {value: 6, unit: in}
+  wall_thickness:     {value: 0.006, unit: m}      # (SLANT VS VERTICAL THICKNESS)
+  pc:                 {value: 50, unit: bar}                   # chamber (stagnation) pressure
+  mixture_ratio:      {value: 2.0, unit: dimensionless}       # oxidizer/fuel ratio (by mass)
+  c_star_efficiency:  {value: 0.85, unit: dimensionless}  # experimental
+  c_tau_efficiency:   {value: 0.95, unit: dimensionless}   # experimental
+  compute_thermals:   true                       # run regen thermal balance (increases runtime)
 
   film_coolant:
-    fraction: [0.05, 0.05]  # fraction of fuel mass flow per film-cooling row (3%-10%, Huzel & Huang)
-    injection_x: [0, 0.25]  # m - injector perimeter, and along chamber wall
-    v_injection: 10         # m/s - initial gas velocity needed for film model
-    injection_efficiency: 1
+    fraction:             {value: [0.05, 0.05], unit: dimensionless}  # fraction of fuel mass flow per film-cooling row (3%-10%, Huzel & Huang)
+    injection_x:          {value: [0, 0.25], unit: m}   # injector perimeter, and along chamber wall
+    v_injection:          {value: 10, unit: m/s}        # initial gas velocity needed for film model
+    injection_efficiency: {value: 1, unit: dimensionless}
 
   regenerative_coolant:
-    flow_direction: -1      # 1 = forward (injector->nozzle), -1 = counter (nozzle->injector)
+    flow_direction: {value: -1, unit: dimensionless}  # 1 = forward (injector->nozzle), -1 = counter (nozzle->injector)
 
   regenerative_jacket:
-    n_pipe1: 64             # channels along barrel
-    n_pipe2: 32             # channels near throat
-    n_pipe3: 64             # channels along lower nozzle
-    gap_pipe: {value: 0.125, unit: in}   # m = 1/8 * 0.0254 (1/8 in) - fin thickness between channels
-    h_pipe: {value: 0.08, unit: in}      # m = 0.08 * 0.0254 (0.08 in) - coolant channel height
-    merge_radius: 0.057465  # m = 0.45 * (5.5*0.0254 - 2*0.006)
-    cond: 401               # W/m-K - thermal conductivity of copper
+    n_pipe1:  {value: 64, unit: dimensionless}  # channels along barrel
+    n_pipe2:  {value: 32, unit: dimensionless}  # channels near throat
+    n_pipe3:  {value: 64, unit: dimensionless}  # channels along lower nozzle
+    gap_pipe: {value: 0.125, unit: in}         # fin thickness between channels
+    h_pipe:   {value: 0.08, unit: in}            # coolant channel height
+    merge_radius: {value: 0.057465, unit: m}   # = 0.45 * (5.5 in - 2*0.006 m)
+    cond:     {value: 401, unit: W/m/K}            # thermal conductivity of copper
 
 gg:
-  stiffness: 0.25           # Pa/Pa - guess
-  fraction_guess: 0.05      # fraction of total mass flow to the gas generator (F1=0.030, J2=0.014)
-  mixture_ratio: 0.2        # oxidizer/fuel ratio (hydrocarbons ~0.3, NASA 1972)
-  c_star_efficiency: 0.75   # characteristic velocity efficiency, experimental
-  c_tau_efficiency: 0.96    # thrust coefficient efficiency factor
-  orifice_number_fuel: 12   # 4 impinging, 8 showerhead film cooling on gg injector
-  r_chamber: 0.025          # m - radius of gg combustion chamber
+  stiffness:            {value: 0.25, unit: Pa/Pa}          # guess
+  fraction_guess:       {value: 0.05, unit: dimensionless}  # fraction of total mass flow to the gas generator (F1=0.030, J2=0.014)
+  mixture_ratio:        {value: 0.2, unit: dimensionless}   # oxidizer/fuel ratio (hydrocarbons ~0.3, NASA 1972)
+  c_star_efficiency:    {value: 0.75, unit: dimensionless}  # experimental
+  c_tau_efficiency:     {value: 0.96, unit: dimensionless}
+  orifice_number_fuel:  {value: 12, unit: dimensionless}    # 4 impinging, 8 showerhead film cooling on gg injector
+  r_chamber:            {value: 0.025, unit: m}             # radius of gg combustion chamber
 
 turbine:
-  r_pitchline: {value: 4.5, unit: in}      # m = 4.5 * 0.0254 (4.5 in)
-  gear_ratio: 1             # higher = faster/smaller turbine; 1 = common shaft
-  d_throat_nozzle: {value: 0.127, unit: in}
-  diverge_angle_gg: {value: 15, unit: deg}
-  blade_width: {value: 0.5, unit: in}      # m = 0.5 * 0.0254 (0.5 in)
-  admission_fraction: 0.05555555555555555   # = 20/360 - fraction of nozzle-plate circle with nozzles
-  blade_length: {value: 0.25, unit: in}    # m = 0.25 * 0.0254 (0.25 in)
-  tip_clearance: 0.0005     # m
-  radius_leading: 0.002     # m - blade leading-edge fillet radius (NEEDS MORE RESEARCH)
+  r_pitchline_max:    {value: 5.5, unit: in}           # manufacturing limit
+  velocity_ratio:     {value: 0.35, unit: dimensionless} # u/c0 target; 0.30-0.40 is best for a single-row impulse stage
+  gear_ratio:         {value: 1, unit: dimensionless} # higher = faster/smaller turbine; 1 = common shaft
+  d_throat_nozzle:    {value: 0.127, unit: in}
+  diverge_angle_gg:   {value: 15, unit: deg}
+  blade_width:        {value: 0.5, unit: in}
+  admission_fraction: {value: 20, unit: deg/turn}     # fraction of nozzle-plate circle with nozzles
+  blade_length:       {value: 0.25, unit: in}
+  tip_clearance:      {value: 0.0005, unit: m}
+  radius_leading:     {value: 0.002, unit: m}         # blade leading-edge fillet radius (NEEDS MORE RESEARCH)
 
 # Per-fluid pump configuration. Each fluid composes an inducer, impeller(s),
 # volute, and tank. Requesting a fluid not listed here raises a KeyError.
 pump:
   ox:
-    surface_roughness: 1.0e-5   # m
-    clocking: 1                 # 1 = CCW, -1 = CW (looking down at inlet)
-    n_stages: 1
+    surface_roughness: {value: 1.0e-5, unit: m}
+    clocking: {value: 1, unit: dimensionless}  # 1 = CCW, -1 = CW (looking down at inlet)
+    n_stages: {value: 1, unit: dimensionless}
+    plumbing_loss: {value: 10, unit: psi}      # pressure allowance from pump discharge to the injector manifold
     inducer:
-      flow_coeff: 0.06
-      blade_number: 3
-      clearance_radial: 2.0e-4  # m
-      hub_tip_ratio: 0.2        # inlet hub/tip radius ratio
-      hub_tip_ratio_out: 0.5    # outlet hub/tip radius ratio
-      suction_margin_factor: 1.5   # margin on NPSH
-      flow_margin_factor: 1.2      # margin on flow rate
-      blade_thickness: 0.001    # m
-      tip_clearance: 0.001      # m
-      length_pitch_ratio: 2.5   # max useful value per Gulich
-      sweepback: {value: 77.5, unit: deg}   # rad = (65+90)/2 * pi/180 (77.5 deg)
+      flow_coeff: {value: 0.06, unit: dimensionless}
+      blade_number: {value: 3, unit: dimensionless}
+      clearance_radial: {value: 2.0e-4, unit: m}
+      hub_tip_ratio: {value: 0.2, unit: dimensionless}       # inlet hub/tip radius ratio
+      hub_tip_ratio_out: {value: 0.5, unit: dimensionless}   # outlet hub/tip radius ratio
+      suction_margin_factor: {value: 1.5, unit: dimensionless}  # margin on NPSH
+      flow_margin_factor: {value: 1.2, unit: dimensionless}     # margin on flow rate
+      blade_thickness: {value: 0.001, unit: m}
+      tip_clearance: {value: 0.001, unit: m}
+      length_pitch_ratio: {value: 2.5, unit: dimensionless}  # max useful value per Gulich
+      sweepback: {value: 77.5, unit: deg}      # (65+90)/2
+      incidence: {value: 3, unit: deg}         # blade angle minus flow angle at the leading edge; 2-4 deg per Gulich
     impeller:
-      NPSH_required: 10
-      hub_in_angle: {value: -90, unit: deg}    # rad = -90 deg
-      hub_out_angle: {value: -10, unit: deg}  # rad = -10 deg
-      shroud_in_angle: {value: -90, unit: deg} # rad = -90 deg
-      shroud_out_angle: {value: 0, unit: deg}                # rad = -0 deg
-      thickness: 0.003          # m
-      suction_margin: 1.5
-      surface_roughness: 1.0e-5 # m
-    volute:
-      dummy: 1.0
-      wrap_angle: {value: 1, unit: turn}   # rad = 2*pi (single volute; double = pi)
+      suction_specific_speed: {value: 10000, unit: ns_US}
+      hub_in_angle: {value: -90, unit: deg}
+      hub_out_angle: {value: -10, unit: deg}
+      shroud_in_angle: {value: -90, unit: deg}
+      shroud_out_angle: {value: 0, unit: deg}
+      blade_thickness_ratio: {value: 0.02, unit: dimensionless}  # blade thickness / outlet diameter (e/d2)
+      suction_margin_factor: {value: 1.5, unit: dimensionless}
+      surface_roughness: {value: 1.0e-5, unit: m}
+      lambda_c: {value: 1.1, unit: dimensionless}
+      lambda_w: {value: 0.2, unit: dimensionless}
+    vaned_diffuser:
+      inlet_width_ratio: {value: 1.175, unit: dimensionless}   # b3/b2; 1.05-1.3 per Gulich
+      incidence: {value: -1.5, unit: deg}                      # vane angle minus flow angle; positive is closer to radial
+      throat_width_factor: {value: 1.2, unit: dimensionless}   # f_a3; 1.1-1.3 per Gulich 7.7.10
+      outlet_factor: {value: 1.1, unit: dimensionless}         # 1.05-1.15 per Gulich 7.9.1
     tank:
-      p: 250000.0               # Pa = 2.5E5
-      T: 90.188                 # K
+      p: {value: 2.5, unit: bar}
   fuel:
-    surface_roughness: 1.0e-5   # m
-    clocking: 1                 # 1 = CCW, -1 = CW (looking down at inlet)
-    n_stages: 1
-    plumbing_loss: {value: 20, unit: psi}   # Pa = 20 * 6894.76 (20 psi) - fuel only
+    surface_roughness: {value: 1.0e-5, unit: m}
+    clocking: {value: 1, unit: dimensionless}  # 1 = CCW, -1 = CW (looking down at inlet)
+    n_stages: {value: 1, unit: dimensionless}
     inducer:
-      flow_coeff: 0.15
-      blade_number: 3
-      clearance_radial: 2.0e-4  # m
-      hub_tip_ratio: 0.2
-      hub_tip_ratio_out: 0.5
-      suction_margin_factor: 1.5
-      flow_margin_factor: 1.2
-      blade_thickness: 0.001    # m
-      tip_clearance: 0.001      # m
-      length_pitch_ratio: 2.5
-      sweepback: {value: 77.5, unit: deg}   # rad = (65+90)/2 * pi/180 (77.5 deg)
+      flow_coeff: {value: 0.07, unit: dimensionless}
+      blade_number: {value: 3, unit: dimensionless}
+      clearance_radial: {value: 2.0e-4, unit: m}
+      hub_tip_ratio: {value: 0.2, unit: dimensionless}
+      hub_tip_ratio_out: {value: 0.5, unit: dimensionless}
+      suction_margin_factor: {value: 1.5, unit: dimensionless}
+      flow_margin_factor: {value: 1.2, unit: dimensionless}
+      blade_thickness: {value: 0.001, unit: m}
+      tip_clearance: {value: 0.001, unit: m}
+      length_pitch_ratio: {value: 2.5, unit: dimensionless}
+      sweepback: {value: 77.5, unit: deg}      # (65+90)/2
+      incidence: {value: 3, unit: deg}         # blade angle minus flow angle at the leading edge; 2-4 deg per Gulich
     impeller:
-      NPSH_required: 10
-      hub_in_angle: {value: -90, unit: deg}    # rad = -90 deg
-      hub_out_angle: {value: -10, unit: deg}   # rad = -10 deg
-      shroud_in_angle: {value: -90, unit: deg} # rad = -90 deg
-      shroud_out_angle: {value: 0, unit: deg}  # rad = -0 deg
-      thickness: 0.003          # m
-      suction_margin: 1.5
-      surface_roughness: 1.0e-5 # m
+      suction_specific_speed: {value: 10000, unit: ns_US}
+      hub_in_angle: {value: -90, unit: deg}
+      hub_out_angle: {value: -10, unit: deg}
+      shroud_in_angle: {value: -90, unit: deg}
+      shroud_out_angle: {value: 0, unit: deg}
+      blade_thickness_ratio: {value: 0.02, unit: dimensionless}  # blade thickness / outlet diameter (e/d2)
+      suction_margin_factor: {value: 1.5, unit: dimensionless}
+      surface_roughness: {value: 1.0e-5, unit: m}
+      lambda_c: {value: 1.1, unit: dimensionless}
+      lambda_w: {value: 0.2, unit: dimensionless}
     volute:
-      dummy: 1.0
-      wrap_angle: {value: 1, unit: turn}   # rad = 2*pi
+      discharge_cone_angle: {value: 8, unit: deg}  # total included angle of the discharge nozzle; 7-10 deg is near optimum
+      discharge_max_length: {value: 4, unit: in}   # packaging limit on discharge nozzle length
+      inlet_width_ratio: {value: 1.5, unit: dimensionless}  # volute inlet width / impeller outlet width
+      wrap_angle: {value: 1, unit: turn}
+    mainline:                                  # volute discharge to regen jacket inlet
+      tube_od_options: {value: [0.25, 0.375, 0.5, 0.625, 0.75, 1.0, 1.25, 1.5, 2.0], unit: in}         # standard tube sizes to choose from
+      tube_wall_options: {value: [0.035, 0.035, 0.049, 0.049, 0.065, 0.065, 0.083, 0.083, 0.095], unit: in}
+      tube_material_options:                                # allowable hoop stress includes safety factor
+        stainless: {density: {value: 8000, unit: kg/m**3}, allowable_stress: {value: 100, unit: MPa}}  # 304 annealed
+        aluminum:  {density: {value: 2700, unit: kg/m**3}, allowable_stress: {value: 120, unit: MPa}}  # 6061-T6
+      dp_mass_equivalent: {value: 0.2, unit: kg/bar}  # cost weighting: line mass worth one unit of pressure drop - ARBITRARY FOR NOW
+      length: {value: 1, unit: m}
+      roughness: {value: 1.5e-6, unit: m}      # drawn tube
+      minor_losses:                            # K items, on the tube velocity head; K x count
+        bend_90_long_radius: {K: {value: 0.2, unit: dimensionless}, count: {value: 2, unit: dimensionless}}  # r/d ~ 1.5
+        main_valve:          {K: {value: 0.1, unit: dimensionless}, count: {value: 1, unit: dimensionless}}  # full-bore ball valve, open
+        fitting:             {K: {value: 0.05, unit: dimensionless}, count: {value: 2, unit: dimensionless}} # straight-through AN/flare fittings
+        manifold_entry:      {K: {value: 1.0, unit: dimensionless}, count: {value: 1, unit: dimensionless}}  # sudden expansion into regen manifold - full dump
     tank:
-      p: 100000.0               # Pa = 1E5
-      T: 293                    # K
+      p: {value: 1, unit: bar}
 
 machine:
-  bus_voltage: 600.0          # V - line-neutral rms design bus
-  winding_factor: 0.95        # unitless - fundamental winding factor k_w
-  pullout_margin_min: 1.6     # unitless - minimum link pull-out margin
+  bus_voltage: {value: 600.0, unit: V}         # line-neutral rms design bus
+  winding_factor: {value: 0.95, unit: dimensionless}      # fundamental winding factor k_w
+  pullout_margin_min: {value: 1.6, unit: dimensionless}   # minimum link pull-out margin
+  max_pole_pairs: {value: 5, unit: dimensionless}         # max pole pairs to allow; 1 for a common shaft
   alternator:
-    reactance_perunit: 0.22        # unitless - per-unit synchronous reactance
-    resistance_phase: 0.020   # ohm - per-phase winding resistance
-    core_loss_fraction: 0.015 # unitless - crude core loss / throughput (until Steinmetz)
-    remanence: 1.08           # T - SmCo B_r (warm side)
-    relative_recoil_permeability: 1.05 # unitless - mu_r
-    magnet_length: 0.006      # m - axial magnet thickness
-    airgap: 0.0015            # m
-    r_inner: 0.015            # m - annulus ID (centre bearing bore)
-    shear_allowable: 80000.0        # Pa = 80 kPa - airgap shear ceiling (Jet-A cooled)
+    reactance_perunit: {value: 0.22, unit: dimensionless} # per-unit synchronous reactance
+    resistance_phase: {value: 0.020, unit: ohm}  # per-phase winding resistance
+    core_loss_fraction: {value: 0.015, unit: dimensionless}  # crude core loss / throughput (until Steinmetz)
+    remanence: {value: 1.08, unit: T}          # SmCo B_r (warm side)
+    relative_recoil_permeability: {value: 1.05, unit: dimensionless}  # mu_r
+    magnet_length: {value: 0.006, unit: m}     # axial magnet thickness
+    airgap: {value: 0.0015, unit: m}
+    r_inner: {value: 0.015, unit: m}           # annulus ID (centre bearing bore)
+    shear_allowable: {value: 80, unit: kPa}    # airgap shear ceiling (Jet-A cooled)
   motor:
-    reactance_perunit: 0.24        # unitless
-    resistance_phase: 0.018   # ohm
-    core_loss_fraction: 0.012 # unitless
-    remanence: 1.10           # T - SmCo B_r (cold side, uncoated; B_r up a touch)
-    relative_recoil_permeability: 1.05 # unitless
-    magnet_length: 0.006      # m
-    airgap: 0.0015            # m
-    r_inner: 0.015            # m
-    shear_allowable: 90000.0        # Pa = 90 kPa - LOX-flooded, good cooling
+    reactance_perunit: {value: 0.24, unit: dimensionless}
+    resistance_phase: {value: 0.018, unit: ohm}
+    core_loss_fraction: {value: 0.012, unit: dimensionless}
+    remanence: {value: 1.10, unit: T}          # SmCo B_r (cold side, uncoated; B_r up a touch)
+    relative_recoil_permeability: {value: 1.05, unit: dimensionless}
+    magnet_length: {value: 0.006, unit: m}
+    airgap: {value: 0.0015, unit: m}
+    r_inner: {value: 0.015, unit: m}
+    shear_allowable: {value: 90, unit: kPa}    # LOX-flooded, good cooling
   cable:
-    length: 0.35              # m - conductor run length
-    area: {value: 25, unit: mm**2}   # m2 = 25 mm2 conductor cross-section
-    cold_fraction: 0.6        # unitless - length fraction at cryo temperature
-    resistivity_warm: 1.9e-8  # ohm-m - Cu near ambient
-    resistivity_cold: 3.0e-9  # ohm-m - Cu at LOX temperature (cryo credit)
-    inductance: 2.0e-6        # H - series line inductance
+    length: {value: 0.35, unit: m}             # conductor run length
+    area: {value: 25, unit: mm**2}             # conductor cross-section
+    cold_fraction: {value: 0.6, unit: dimensionless}  # length fraction at cryo temperature
+    resistivity_warm: {value: 1.9e-8, unit: ohm*m}    # Cu near ambient
+    resistivity_cold: {value: 3.0e-9, unit: ohm*m}    # Cu at LOX temperature (cryo credit)
+    inductance: {value: 2.0e-6, unit: H}       # series line inductance

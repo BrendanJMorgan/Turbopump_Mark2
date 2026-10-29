@@ -10,3 +10,5 @@ __pycache__/
 # Common junk
 .DS_Store
 Thumbs.db
+# Generated plot dashboard
+Python/Components/mark2_plots.html

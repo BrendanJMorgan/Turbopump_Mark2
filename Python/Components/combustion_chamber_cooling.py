@@ -27,16 +27,16 @@ def combustion_chamber_cooling():
     
     
     film.T_critical = fuel.Tc  # K - critical temperature of film
-    film.p_critical = fuel.Pc * 6894.76  # Pa - critical pressure of film
+    film.p_critical = fuel.Pc  # Pa - critical pressure of film
 
-    film.mw = fuel.M  # g/mol - molecular weight of RP-1
+    film.mw = fuel.M  # kg/mol - molecular weight of the fuel surrogate (CoolProp returns kg/mol)
     film.liquid.velocity = np.zeros_like(tca.x) # m/s - velocity of liquid film coolant at each station
 
     film.T_sat = np.zeros_like(tca.x) # K - saturation temperature of film coolant at each station
     for attr in ['velocity', 'mdot', 'cp', 'cond', 'heat_vap', 'density', 'resistance', 'thickness']:
         setattr(film.liquid, attr, np.zeros_like(tca.x)) 
     film.liquid.T = engine.T_amb*np.ones_like(tca.x) # K - initialize liquid film temperature to ambient  
-    for attr in ['velocity', 'mdot', 'cp', 'cond', 'p', 'p_sat', 'density', 'resistance', 'vaporized_mass', 'thickness', 'T']:
+    for attr in ['velocity', 'mdot', 'cp', 'cond', 'p', 'p_sat', 'density', 'resistance', 'vaporized_mdot', 'thickness', 'T']:
         setattr(film.gas, attr, np.zeros_like(tca.x))
     film.gas.T = engine.T_amb*np.ones_like(tca.x) # K - initialize gas film temperature to ambient
 
@@ -47,6 +47,9 @@ def combustion_chamber_cooling():
         setattr(cool, attr, np.zeros_like(tca.x))
     for attr in ['T_cold', 'T_hot', 'resistance']:
         setattr(jacket, attr, np.zeros_like(tca.x))
+    T_upper = np.zeros_like(tca.x) # K - bulk temperature of the layer directly above the wall (film or free gas)
+    R_down = np.ones_like(tca.x)   # K/W - resistance from that layer's bulk to the coolant bulk
+    T_coolant_inlet = 400 # K - CHANGE TO PUMP DISCHARGE TEMPERATURE
     
     jacket.T_hot = 0.5 * tca.Tt * np.ones(len(tca.x)) # K - Initial guess for the hot wall temperatures
     cool.p = np.full(len(tca.x), float(engine.p_amb))     # Pa - coolant pressure (initialized at p_amb)
@@ -132,7 +135,7 @@ def combustion_chamber_cooling():
     gas.molar_fractions = np.array(molar_fractions)              # (n_species, nx)
     gas.molecular_weights = np.array(molecular_weights)[:, None]
 
-    gas.mol_weight = np.sum(gas.molar_fractions * gas.molecular_weights) / np.sum(gas.molar_fractions)  # kg/mol
+    gas.mol_weight = np.sum(gas.molar_fractions * gas.molecular_weights, axis=0) / np.sum(gas.molar_fractions, axis=0)  # kg/mol
     R_universal = 8.3145 # J/mol-K
     gas.R = R_universal / gas.mol_weight  # J/kg-K - specific gas constant of combustion gases
     gas.velocity = gas.M * np.sqrt(gas.gamma * gas.R * gas.T_free)  # m/s - velocity of combustion gases at each station
@@ -147,7 +150,7 @@ def combustion_chamber_cooling():
     ### Main Loop
     #######################################################################################################
 
-    max_iterations = 20
+    max_iterations = 100
     for j in range(max_iterations): # iterate to convergence, max of 20 iterations to prevent infinite loop in case of non-convergence
         T_hot_prev = jacket.T_hot.copy()        
 
@@ -164,7 +167,7 @@ def combustion_chamber_cooling():
                      * (1+(gas.gamma-1)/2*gas.M**2)**0.12)
         gas.heat_transfer_coeff = ((0.026/tca.d_throat**0.2)
             * (gas.viscosity**0.2 * gas.cp / gas.prandtl**0.6)
-            * (gas.p/tca.c_star)**0.8
+            * (tca.pc/tca.c_star)**0.8
             * (tca.d_throat/tca.rc_throat)**0.1
             * (tca.r_throat/tca.r1)**(2*0.9)
             * sigma)
@@ -206,7 +209,7 @@ def combustion_chamber_cooling():
             cool.heat_transfer_coeff[i] = cool.nusselt[i] * cool.thermal_conductivity[i] / jacket.d_hydraulic[i]  # W/m2-K
 
             # Fin efficiency
-            m_coeff = np.sqrt(2 * cool.heat_transfer_coeff[i] / jacket.cond * fin_thickness[i])  # coefficient for fin efficiency equation
+            m_coeff = np.sqrt(2 * cool.heat_transfer_coeff[i] / (jacket.cond * fin_thickness[i]))  # coefficient for fin efficiency equation
             fin_eff = np.tanh(m_coeff * (jacket.h_pipe[i] + fin_thickness[i]) / 2) / (m_coeff * (jacket.h_pipe[i] + fin_thickness[i]) / 2)
             cool.A[i] = (2 * fin_height[i] * fin_eff + jacket.w_pipe[i]) * tca.dx * jacket.n_pipe[i]  # m2 - adjusted contact area of coolant on channel walls
 
@@ -214,18 +217,19 @@ def combustion_chamber_cooling():
             cool.dp1[i] = - 0.5 * cool.f_darcy[i] * cool.density[i] * cool.velocity[i]**2 * tca.dx / jacket.d_hydraulic[i] # Pa - major loss
 
             # Minor Losses (diameter / channel-count changes)
-            if jacket.n_pipe[i+next] == jacket.n_pipe[i]:  # most of the time: same number of channels
-                d_hydraulic_mod = jacket.d_hydraulic[i+next]
+            i_next = i + next if 0 <= i + next < len(tca.x) else i  # next station along the coolant flow; no neighbour past the ends
+            if jacket.n_pipe[i_next] == jacket.n_pipe[i]:  # most of the time: same number of channels
+                d_hydraulic_mod = jacket.d_hydraulic[i_next]
                 A1 = jacket.w_pipe[i] * jacket.h_pipe[i] # channel area before
-                A2 = jacket.w_pipe[i+next] * jacket.h_pipe[i+next] # channel area after
-            elif jacket.n_pipe[i+next] < jacket.n_pipe[i]:  # channels merge
-                d_hydraulic_mod = 4.0 * 0.5 * jacket.w_pipe[i+next] * jacket.h_pipe[i+next] / (2.0 * 0.5 * jacket.w_pipe[i+next] + 2.0 * jacket.h_pipe[i+next])  # half-channel
+                A2 = jacket.w_pipe[i_next] * jacket.h_pipe[i_next] # channel area after
+            elif jacket.n_pipe[i_next] < jacket.n_pipe[i]:  # channels merge
+                d_hydraulic_mod = 4.0 * 0.5 * jacket.w_pipe[i_next] * jacket.h_pipe[i_next] / (2.0 * 0.5 * jacket.w_pipe[i_next] + 2.0 * jacket.h_pipe[i_next])  # half-channel
                 A1 = jacket.w_pipe[i] * jacket.h_pipe[i] # channel area before merge
-                A2 = 0.5 * jacket.w_pipe[i+next] * jacket.h_pipe[i+next] # channel area after merge
-            elif jacket.n_pipe[i+next] > jacket.n_pipe[i]:  # channels divide
+                A2 = 0.5 * jacket.w_pipe[i_next] * jacket.h_pipe[i_next] # channel area after merge
+            elif jacket.n_pipe[i_next] > jacket.n_pipe[i]:  # channels divide
                 d_hydraulic_mod = 4.0 * 0.5 * jacket.w_pipe[i] * jacket.h_pipe[i] / (2.0 * 0.5 * jacket.w_pipe[i] + 2.0 * jacket.h_pipe[i])  # half-channel
                 A1 = 0.5 * jacket.w_pipe[i] * jacket.h_pipe[i] # channel area before divide
-                A2 = jacket.w_pipe[i+next] * jacket.h_pipe[i+next] # channel area after divide
+                A2 = jacket.w_pipe[i_next] * jacket.h_pipe[i_next] # channel area after divide
 
             # Contraction / expansion coefficient (empirical)
             d_ratio = d_hydraulic_mod / jacket.d_hydraulic[i]
@@ -234,15 +238,9 @@ def combustion_chamber_cooling():
             else: # Expansion
                 K = (d_ratio ** -2.0 - 1.0) ** 2.0
             cool.dp2[i] = - 0.5 * K * cool.density[i] * cool.velocity[i] ** 2  # Pa - Minor Losses (diameter changes)
-            cool.dp3[i] = - 0.5*cool.density[i]*(cool.velocity[i+next]**2 - cool.velocity[i]**2) # Pa - Acceleration Losses
+            cool.dp3[i] = - 0.5*cool.density[i]*(cool.velocity[i_next]**2 - cool.velocity[i]**2) # Pa - Acceleration Losses
 
             cool.dp[i] = cool.dp1[i] + cool.dp2[i] + cool.dp3[i]  # Pa - Total Losses
-
-            # March pressure to the next station
-            if i == 0:
-                cool.p[i] = tca.p_injector_manifold
-            else:
-                cool.p[i] = cool.p[i-1] - 1*cool.dp[i-1]
 
             cool.velocity[i] = cool.mdot[i] / (cool.density[i] * jacket.n_pipe[i] * jacket.pipe_area[i]) # m/s - fluid bulk speed at each station
             cool.reynolds[i] = cool.velocity[i] * jacket.d_hydraulic[i] / cool.kin_viscosity[i] # unitless - Reynolds number
@@ -263,12 +261,17 @@ def combustion_chamber_cooling():
             else:
                 i_prev = i-1
             
-            film.liquid.mdot[i] = film.liquid.mdot[i_prev] + film.liquid.injection_mdot[i] - film.gas.vaporized_mass[i_prev]  # kg/s
-            film.gas.mdot[i] = film.gas.mdot[i_prev] + film.gas.vaporized_mass[i_prev] # kg/s
+            # Upstream film state; nothing flows in at the first station (using index 0 here would re-add the injection every pass)
+            liquid_mdot_upstream = film.liquid.mdot[i-1] if i > 0 else 0.0
+            gas_mdot_upstream = film.gas.mdot[i-1] if i > 0 else 0.0
+            vaporized_mdot_upstream = film.gas.vaporized_mdot[i-1] if i > 0 else 0.0
+
+            film.liquid.mdot[i] = liquid_mdot_upstream + film.liquid.injection_mdot[i] - vaporized_mdot_upstream  # kg/s
+            film.gas.mdot[i] = gas_mdot_upstream + vaporized_mdot_upstream # kg/s
 
             if film.liquid.injection_mdot[i] > 0:  # Injection point
-                if film.liquid.mdot[i_prev] > 0:
-                    film.liquid.T[i] = (film.liquid.mdot[i_prev] * film.liquid.T[i] + film.liquid.injection_mdot[i] * cool.T[i]) / (film.liquid.mdot[i_prev] + film.liquid.injection_mdot[i])
+                if liquid_mdot_upstream > 0:
+                    film.liquid.T[i] = (liquid_mdot_upstream * film.liquid.T[i] + film.liquid.injection_mdot[i] * cool.T[i]) / (liquid_mdot_upstream + film.liquid.injection_mdot[i])
                 else:
                     film.liquid.T[i] = cool.T[i]  # First injection, no upstream
 
@@ -280,7 +283,7 @@ def combustion_chamber_cooling():
                 film.liquid.cp[i]       = fuel.cp(film.liquid.T[i], gas.p[i])
                 film.liquid.cond[i]     = fuel.k(film.liquid.T[i], gas.p[i])
                 film.liquid.density[i]  = fuel.rho(film.liquid.T[i], gas.p[i])
-                film.liquid.heat_vap[i] = fuel.hvap(film.liquid.T[i])  # 0 above Tc, handled
+                film.liquid.heat_vap[i] = fuel.hvap(film.T_sat[i])  # latent heat at saturation (0 when supercritical, unused there)
                 film.liquid.thickness[i] = film.liquid.mdot[i] / (film.liquid.density[i]  * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m VELOCITY PROBABLY WRONG
             else:
                 film.liquid.thickness[i] = 0
@@ -291,6 +294,7 @@ def combustion_chamber_cooling():
                 film.gas.cond[i]    = fuel.k(film.gas.T[i], gas.p[i])
                 film.gas.density[i] = fuel.rho(film.gas.T[i], gas.p[i])
                 film.gas.thickness[i] = film.gas.mdot[i]  / (film.gas.density[i] * gas.velocity[i] * 2*np.pi*tca.r1[i] )  # m
+            else: 
                 film.gas.thickness[i] = 0
 
 
@@ -305,31 +309,31 @@ def combustion_chamber_cooling():
             jacket.resistance[i] = t_wall[i] / (jacket.cond * gas.A[i])            # K/W - wall conduction
             cool.resistance[i] = 1 / (cool.heat_transfer_coeff[i] * cool.A[i])                    # K/W - regen coolant convection
 
-            # Heat balance - q's between the resistive layers. T's are bulk temps of the layers
+            # Heat balance - q's between the resistive layers. T's are bulk temps of the layers;
+            # the wall and the coolant convection film are traversed in full (only film-coolant layers are split in half)
             if film.gas.mdot[i] > 0 and film.liquid.mdot[i] > 0: # two-phase film coolant
                 tca.q1[i] = (gas.T_adiabatic_wall[i] - film.gas.T[i]) / (gas.resistance[i]+film.gas.resistance[i]/2)  # W
                 tca.q2[i] = (film.gas.T[i] - film.liquid.T[i]) / (film.gas.resistance[i]/2+film.liquid.resistance[i]/2)  # W
-                tca.q3[i] = (film.liquid.T[i] - cool.T[i]) / (film.liquid.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)  # W
+                T_upper[i] = film.liquid.T[i]
+                R_down[i] = film.liquid.resistance[i]/2 + jacket.resistance[i] + cool.resistance[i]
             elif film.gas.mdot[i] > 0 and film.liquid.mdot[i] == 0: # fully vaporized film coolant
                 tca.q1[i] = (gas.T_adiabatic_wall[i] - film.gas.T[i]) / (gas.resistance[i]+film.gas.resistance[i]/2)  # W
-                tca.q2[i] = (film.gas.T[i] - cool.T[i]) / (film.gas.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)  # W
-                tca.q3[i] = tca.q2[i]
+                T_upper[i] = film.gas.T[i]
+                R_down[i] = film.gas.resistance[i]/2 + jacket.resistance[i] + cool.resistance[i]
             elif film.gas.mdot[i] == 0 and film.liquid.mdot[i] > 0: # fully liquid film coolant
                 tca.q1[i] = (gas.T_adiabatic_wall[i] - film.liquid.T[i]) / (gas.resistance[i]+film.liquid.resistance[i]/2)  # W
                 tca.q2[i] = tca.q1[i]
-                tca.q3[i] = (film.liquid.T[i] - cool.T[i]) / (film.liquid.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)  # W
+                T_upper[i] = film.liquid.T[i]
+                R_down[i] = film.liquid.resistance[i]/2 + jacket.resistance[i] + cool.resistance[i]
             else: # no film coolant
-                tca.q1[i] = (gas.T_adiabatic_wall[i] - cool.T[i]) / (gas.resistance[i] + jacket.resistance[i] + cool.resistance[i]/2)  # W
-                tca.q2[i] = tca.q1[i]
-                tca.q3[i] = tca.q1[i]
+                T_upper[i] = gas.T_adiabatic_wall[i]
+                R_down[i] = gas.resistance[i] + jacket.resistance[i] + cool.resistance[i]
 
-            jacket.T_cold[i] = cool.T[i] + tca.q3[i] * cool.resistance[i]/2  # K - wall temperature on coolant side
-            jacket.T_hot[i] = jacket.T_cold[i] + tca.q3[i] * jacket.resistance[i]  # K - wall temperature on hot side
-
-            if i == flow_entrance_index:
-                cool.T[i] = 400 # K - CHANGE TO PUMP DISCHARGE TEMPERATURE
-            else:
-                cool.T[i] = cool.T[i-1] + next * tca.q3[i] / (cool.mdot[i] * cool.specific_heat[i]) # K
+            tca.q3[i] = (T_upper[i] - cool.T[i]) / R_down[i]  # W - into the regen coolant (coolant T from the previous pass; re-marched below)
+            if film.liquid.mdot[i] == 0: # no liquid film: the layer above the wall passes q3 straight through
+                tca.q2[i] = tca.q3[i]
+                if film.gas.mdot[i] == 0:
+                    tca.q1[i] = tca.q3[i]
 
             # # March film temperatures only when the phase exists
             # if film.gas.mdot[i] > 0 and film.gas.cp[i] > 0: # gas film exists
@@ -346,11 +350,11 @@ def combustion_chamber_cooling():
                     G_cold = 1.0 / (film.gas.resistance[i]/2 + film.liquid.resistance[i]/2) # conductance towards liquid film
                 else:                                                                  # vaporized: coolant below
                     T_low  = cool.T[i]
-                    G_cold = 1.0 / (film.gas.resistance[i]/2 + jacket.resistance[i]/2 + cool.resistance[i]/2)
+                    G_cold = 1.0 / (film.gas.resistance[i]/2 + jacket.resistance[i] + cool.resistance[i])
 
                 T_equilibrium = (G_hot*gas.T_adiabatic_wall[i] + G_cold*T_low) / (G_hot + G_cold)
                 NTU  = (G_hot + G_cold) / (film.gas.mdot[i] * film.gas.cp[i]) # heat exchanger constant
-                film.gas.T[i] = T_equilibrium + (film.gas.T[i-1] - T_equilibrium) * np.exp(-NTU) # law of cooling
+                film.gas.T[i] = T_equilibrium + (film.gas.T[i_prev] - T_equilibrium) * np.exp(-NTU) # law of cooling
             else: # no gas film
                 film.gas.T[i] = film.liquid.T[i] if film.liquid.mdot[i] > 0 else cool.T[i]
 
@@ -366,10 +370,11 @@ def combustion_chamber_cooling():
             if film.liquid.T[i] > film.T_sat[i]:
                 if not fuel.is_supercritical(gas.p[i]):
                     # Subcritical boiling: latent heat sink, T held at Tsat
-                    film.gas.vaporized_mass[i] = (
-                        (film.liquid.T[i] - film.T_sat[i]) * film.liquid.cp[i]
-                        * film.liquid.mdot[i] * dt / film.liquid.heat_vap[i]
-                    )
+                    # Superheat boils film off; capped at the film present (a film superheated past Tc flashes entirely)
+                    if film.liquid.heat_vap[i] > 0:
+                        film.gas.vaporized_mdot[i] = min((film.liquid.T[i] - film.T_sat[i]) * film.liquid.cp[i] * film.liquid.mdot[i] / film.liquid.heat_vap[i], film.liquid.mdot[i])
+                    else:
+                        film.gas.vaporized_mdot[i] = film.liquid.mdot[i]
                     film.liquid.T[i] = film.T_sat[i]
                 # Supercritical: no phase change, T marches freely.
             
@@ -379,7 +384,30 @@ def combustion_chamber_cooling():
                 Tsat = fuel.Tsat(cool.p[i])
                 if cool.T[i] > Tsat - vapor_margin:
                     raise ValueError(f"Warning: Regenerative coolant has less than {vapor_margin} K vapor margin at {tca.x[i]} m from injector ({tca.x_exit-tca.x[i]} m from exit plane)")
-                
+
+        #######################################################################################################
+        ### Regen coolant march - follows the coolant, which runs against the index for counterflow
+        #######################################################################################################
+        coolant_order = range(len(tca.x)) if next == 1 else range(len(tca.x)-1, -1, -1)
+        for i in coolant_order:
+            T_in = T_coolant_inlet if i == flow_entrance_index else cool.T[i-next] # K
+            tca.q3[i] = (T_upper[i] - T_in) / R_down[i] # W
+            if film.liquid.mdot[i] == 0:
+                tca.q2[i] = tca.q3[i]
+                if film.gas.mdot[i] == 0:
+                    tca.q1[i] = tca.q3[i]
+            cool.T[i] = T_in + tca.q3[i] / (cool.mdot[i] * cool.specific_heat[i]) # K
+
+            jacket.T_cold[i] = cool.T[i] + tca.q3[i] * cool.resistance[i]  # K - wall temperature on coolant side
+            jacket.T_hot[i] = jacket.T_cold[i] + tca.q3[i] * jacket.resistance[i]  # K - wall temperature on hot side
+
+        # Pressure: anchored at the coolant exit, rising upstream by the loss dp[i] from station i to i+next
+        for i in reversed(coolant_order):
+            if i == flow_exit_index:
+                cool.p[i] = tca.p_injector_manifold
+            else:
+                cool.p[i] = cool.p[i+next] - cool.dp[i] # Pa
+
         # Loop end conditions
         if np.max(np.abs(jacket.T_hot - T_hot_prev)) < 1.0:   # K, tune
             break

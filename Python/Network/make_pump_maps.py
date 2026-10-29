@@ -63,7 +63,7 @@ def affinity_map(design_flow: float, design_head: float,
     phi = (flow[:, None] / design_flow) / (speed[None, :] / design_speed)
     speed_ratio = (speed[None, :] / design_speed) ** 2
 
-    head = design_head * speed_ratio * (1.15 - 0.15 * phi - 0.20 * phi**2)
+    head = design_head * speed_ratio * (1.35 - 0.15 * phi - 0.20 * phi**2)  # psi(1) = 1 -> H_d at the design point
     efficiency = design_efficiency * (1.0 - 1.6 * (phi - 1.0) ** 2)
     efficiency = np.clip(efficiency, 0.05, 0.95)
 

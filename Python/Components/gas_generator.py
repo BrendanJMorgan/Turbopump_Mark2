@@ -1,34 +1,32 @@
 import numpy as np
 from rocketcea.cea_obj import CEA_Obj as rcea
+import rocketcea.py_cea as py_cea
+from rocketcea.units import add_user_units 
 from engine_state import engine, gg
 from types import SimpleNamespace as _ns
 
 def gas_generator():
-    
+
+    gg.p_exit = engine.p_amb
+
+    gg.mdot_fuel = gg.mdot*(1/(1+gg.mixture_ratio))                 # kg/s - Fuel Mass Flow Rate
+    gg.mdot_ox = gg.mdot*(gg.mixture_ratio/(1+gg.mixture_ratio))    # kg/s - Oxidizer Mass Flow Rate  
+
     # NASA CEA run ------------------------------------------------
     cea_gg = rcea(oxName=engine.oxidizer, fuelName=engine.fuel)  # NASA CEA Run
-    gg.p_exit = engine.p_amb  # Pa - exit pressure - assumes perfectly expanded flow
-
-    gg.Ae_At = cea_gg.get_eps_at_PcOvPe(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, PcOvPe=gg.pc/gg.p_exit, frozen=0)    # unitless - Nozzle Expansion / Area Ratio
-    gg.mw = 0.001*cea_gg.get_exit_MolWt_gamma(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, eps=gg.Ae_At)[0]             # kg/mol - molecular weight (fully combusted)
-    gg.R = 8.3145 / (gg.mw / 1000.0)  # J/(kg*K) - specific gas constant
-
-    gg.gamma = 1*cea_gg.get_exit_MolWt_gamma(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, eps=gg.Ae_At)[1]       # Ratio of Specific Heats, exit
-
+    cea_gg.get_full_cea_output(Pc=gg.pc/1E5, MR=gg.mixture_ratio, eps=0, subar=None, PcOvPe=gg.pc/gg.p_exit,
+                                frozen=0, frozenAtThroat=0, short_output=0, show_transport=1,
+                                pc_units='bar', output='calories', show_mass_frac=False)
+    gg.Tt = py_cea.prtout.ttt[0]                                    # K - stagnation temperature at chamber
+    if gg.Tt > 1100:
+        raise ValueError(f"Warning: Chamber temperature of {gg.Tt} K may be too high for typical materials\n")
+    gg.c_star_ideal = float(py_cea.rockt.cstr) / 3.28084 # m/s (CEA reports c* in ft/s) - Characteristic Velocity from infinite area combustor
+    gg.Ae_At = py_cea.rockt.aeat[3]
+    gg.gamma_avg = (py_cea.prtout.gammas[2] + py_cea.prtout.gammas[3]) / 2 # Ratio of Specific Heats, estimate
+    gg.R_gas = 8314.5 / (py_cea.prtout.wm[2])  # J/kg-K (wm is g/mol, so R_u in J/kmol-K) - Specific Gas Constant (throat)
+    
     # Performance Parameters ------------------------------------------------
-    [gg.isp_ideal,b,c] = cea_gg.get_IvacCstrTc(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, eps=gg.Ae_At) # s - specific impulse
-    gg.c_star_ideal = b/3.28084 # m/s - Characteristic Velocity
-    gg.Tc = c/1.8 # K - chamber temperature
-    gg.p_exit = engine.p_amb                                                                # Pa - exit pressure - assumes perfectly expanded flow
-    gg.v_exhaust_ideal = gg.isp_ideal * engine.g                                            # m/s - ideal exhaust velocity
     gg.c_star   = gg.c_star_ideal * gg.c_star_efficiency    # m/s - Characteristic Velocity
+    gg.A_throat = gg.mdot * np.sqrt(gg.R_gas*gg.Tt/gg.gamma_avg) / gg.pc * (0.5*(gg.gamma_avg+1))**(0.5*(gg.gamma_avg+1.0)/(gg.gamma_avg-1.0))  # m2 - throat area (CEA form)
 
-    gg.A_throat = gg.mdot * np.sqrt(gg.R*gg.Tc/gg.gamma) / gg.pc * (0.5*(gg.gamma+1))**(0.5*(gg.gamma+1.0)/(gg.gamma-1.0))  # m2 - throat area (CEA form)
-
-    gg.p_injector = gg.pc * cea_gg.get_Pinj_over_Pcomb(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, fac_CR=np.pi*gg.r_chamber**2 / gg.A_throat) # Pa - injector dp criterion
-
-    gg.density = cea_gg.get_Chamber_Density(Pc=gg.pc/6894.76, MR=gg.mixture_ratio, eps=gg.Ae_At)  # kg/m3 - approximate density at chamber conditions
-
-    if gg.Tc > 1100:
-        raise ValueError(f"Warning: Chamber temperature of {gg.Tc} K may be too high for typical materials\n")
 

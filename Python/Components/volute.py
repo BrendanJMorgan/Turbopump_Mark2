@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 from pathlib import Path
 
 from engine_state import engine, pump
@@ -7,6 +7,7 @@ from engine_state import engine, pump
 # Load and build interpolator once at module load
 diffuser_data = np.load(Path(__file__).parent / 'diffuser_loss.npy')
 diffuser_interp = LinearNDInterpolator(np.log(diffuser_data[:, :2]), diffuser_data[:, 2])
+diffuser_nearest = NearestNDInterpolator(np.log(diffuser_data[:, :2]), diffuser_data[:, 2])
 
 def volute(p) -> None:
 
@@ -16,7 +17,7 @@ def volute(p) -> None:
     vol = p.volute
     imp = p.impeller[0]  # Currently only single stage pumps are supported
 
-    vol.r_tongue = imp.r_outlet * (1.03 + 0.0025 * imp.specific_speed + 7e-8 * p.density * p.head_rise)  # m - Gulich table 10.2, pg 729
+    vol.r_tongue = imp.r_outlet * (1.03 + 0.0025 * 52.9186*imp.specific_speed + 7e-8 * p.density * imp.head_rise)  # m - Gulich table 10.2, pg 729
     vol.t_tongue = 0.04 * imp.r_outlet # m - Gulich pg 493
     vol.r_tongue_stag = vol.r_tongue + 0.5 * vol.t_tongue  # m - stagnation radius
 
@@ -38,7 +39,7 @@ def volute(p) -> None:
     #######################################################################################################
     n_theta = 128
     vol.theta = np.linspace(0, vol.wrap_angle, n_theta) # rad - azimuth
-    dtheta = 2*np.pi/n_theta # rad - azimuth increment
+    dtheta = vol.wrap_angle/(n_theta-1) # rad - azimuth increment
     vol.A_section = np.zeros_like(vol.theta) # m2 - cross-sectional area along the contour
 
     vol.r_inner = np.linspace(vol.r_tongue, vol.r_throat_inner, n_theta) # m - inner radius along the contour
@@ -54,7 +55,7 @@ def volute(p) -> None:
         vol.design_method = "angular_momentum"
         
         X = (vol.vdot / (np.pi * imp.v_tangential_outlet * imp.r_outlet)) * (vol.theta / (2.0 * np.pi))  # m
-        d_section = X + np.sqrt(2.0 * vol.r_throat_inner * X)  # m - Gulich 7.7.7 generalized to partial wrap angle theta
+        d_section = X + 2.0 * np.sqrt(vol.r_throat_inner * X)  # m - Gulich 7.7.7 generalized to partial wrap angle theta
         vol.A_section = np.pi/4 * d_section ** 2  # m^2
 
     vol.d_hydraulic_section = np.sqrt(4.0 * vol.A_section / np.pi)  # m - hydraulic diameter of section
@@ -93,22 +94,24 @@ def volute(p) -> None:
     dA_wetted = perimeter * vol.r_meanline * dtheta  # m2 per section
  
     power_friction_section = 0.5 * p.density * np.sum((cf_friction + 0.0015) * vol.c_section**3 * dA_wetted)  # W - Gulich 3.8.21 - power dissipated via friction
-    vol.friction_loss = 2.0 * np.sum(power_friction_section) / (p.density * imp.vdot * (p.shaft_speed * imp.r_outlet) ** 2) # friction loss - Gulich 3.8.21
+    vol.friction_loss = 0.5 * 2.0 * np.sum(power_friction_section) / (p.density * imp.vdot * (p.shaft_speed * imp.r_outlet) ** 2) # friction loss - Gulich 3.8.21
 
     # Discharge nozzle deceleration loss
-    p.d_mainline = 0.5*0.0254 # HARDCODED PLACEHOLDER
     p.A_mainline = np.pi/4*p.d_mainline**2 # m2 - cross-sectional area of mainline
-    vol.discharge_length = 2*0.0254 # m
-    vol.discharge_cp = discharge_cp(vol.discharge_length*2/vol.d_hydraulic_section[-1], p.A_mainline/vol.A_section[-1]) # pressure recovery coefficient for discharge nozzle - Gulich Fig. 1.19
-    vol.nozzle_loss = vol.c_throat**2 / (p.shaft_speed*imp.r_outlet)**2 * (1.0 - vol.discharge_cp - 1.0 / (p.A_mainline/vol.A_throat)**2) # diffuser nozzle loss - Gulich 3.8.22
+    vol.discharge_area_ratio = p.A_mainline/vol.A_throat # unitless
+    if vol.discharge_area_ratio < 1:
+        raise ValueError(f"{p.fluid} mainline area is {vol.discharge_area_ratio:.2f}x the volute throat - nozzle would contract")
+    vol.discharge_length = vol.d_throat/2*(np.sqrt(vol.discharge_area_ratio) - 1)/np.tan(vol.discharge_cone_angle/2) # m - conical nozzle at a fixed total angle
+    vol.discharge_cp = discharge_cp(vol.discharge_length*2/vol.d_throat, vol.discharge_area_ratio) # pressure recovery coefficient for discharge nozzle - Gulich Fig. 1.19
+    vol.nozzle_loss = 0.5 * vol.c_throat**2 / (p.shaft_speed*imp.r_outlet)**2 * (1.0 - vol.discharge_cp - 1.0 / (p.A_mainline/vol.A_throat)**2) # diffuser nozzle loss - Gulich 3.8.22
 
-    vol.w_inlet = 1.5*imp.w_outlet
-    vol.shock_loss = imp.flow_coeff[-1]**2 * (imp.blockage[-1] - imp.w_outlet/vol.w_inlet)**2 # vaneless diffuser shock loss - Gulich 3.8.24
+    vol.w_inlet = vol.inlet_width_ratio*imp.width_outlet # m
+    vol.shock_loss = 0.5 * imp.flow_coeff[-1]**2 * (imp.blockage[-1] - imp.width_outlet/vol.w_inlet)**2 # vaneless diffuser shock loss - Gulich 3.8.24
     c = 0.63 # 0.65 for diffusers
     x0 = 0.87 # 0.93 for diffusers
-    vol.off_bep_loss = c*x0**2 - 2*x0*c*vol.c_throat/imp.c_bladed[-1] + c*(vol.c_throat/imp.c_bladed[-1])**2 # off-BEP loss - Gulich 3.8.25 - empirical curvefit
+    vol.off_bep_loss = 0.5 * (c*x0**2 - 2*x0*c*vol.c_throat/imp.c_bladed[-1] + c*(vol.c_throat/imp.c_bladed[-1])**2) # off-BEP loss - Gulich 3.8.25 - empirical curvefit
         
-    vol.total_loss = vol.friction_loss + vol.nozzle_loss + vol.shock_loss + (vol.off_bep_loss) # total loss - Gulich 3.8.22a
+    vol.total_loss = vol.friction_loss + vol.nozzle_loss + vol.shock_loss + vol.off_bep_loss # total loss - Gulich 3.8.22a
 
     #######################################################################################################
     ### Curve Generation
@@ -122,8 +125,10 @@ def discharge_cp(L_R1: float, A_R: float) -> float:
     Pressure recovery coefficient c_p for a conical diffuser.
     Interpolated from digitized Gulich Fig. 1.19 (Sovran-Klomp data).
     """
-    query = np.log([L_R1, A_R])
-    pressure = float(diffuser_interp(query))
-    if np.isnan(pressure):
+    if L_R1 < diffuser_data[:, 0].min() or A_R < diffuser_data[:, 1].min():
         raise ValueError(f"(L/R1={L_R1}, A_R={A_R}) outside Fig. 1.19 data range")
+    query = np.log([L_R1, A_R])
+    pressure = float(diffuser_interp(query)[0])
+    if np.isnan(pressure): # past the chart's large-L, large-A_R edge, where cp has plateaued - take the nearest point
+        pressure = float(diffuser_nearest(query)[0])
     return pressure
