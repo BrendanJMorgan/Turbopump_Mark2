@@ -60,7 +60,22 @@ def turbines(t: turbine):
         A_choked = gg.mdot*np.sqrt(gg.Tt)/t.p_manifold * np.sqrt(gg.R_gas/gg.gamma_avg) * ((gg.gamma_avg+1)/2)**(0.5*(gg.gamma_avg+1)/(gg.gamma_avg-1)) # m2 - minimum throughput area needed to prevent gas backup
         A_exit = t.A_throat_cum * ( (2 + (gg.gamma_avg - 1)*t.mach_spouting**2 ) / (gg.gamma_avg + 1) ) ** ((gg.gamma_avg + 1)/(2*(gg.gamma_avg - 1))) / t.mach_spouting # m2 - cumulative area of all blade gaps in rotor
 
-        t.nozzle_number = t.A_throat_cum / (np.pi/4*t.d_throat_nozzle**2) # unitless
+        t.nozzle_number = int(np.ceil(t.A_throat_cum / (np.pi/4*t.d_throat_nozzle**2))) # unitless - whole nozzles, rounded up
+
+        # Admission Geometry - drilled round nozzles -------------------------------------------------
+        # Each exit meets the plate face as an ellipse, long axis along the arc (Aghaei & Tousi 2015, Fig. 5-6)
+        t.d_exit_nozzle = t.d_throat_nozzle*np.sqrt(gg.Ae_At) # m - same expansion ratio as the GG nozzle
+        t.nozzle_footprint = nozzle_footprint(t) # m - exit length along the arc, where the diverging cone meets the plate face
+        t.nozzle_spacing = t.nozzle_spacing_ratio*t.nozzle_footprint # m - center to center along the pitchline
+        t.nozzle_arc = (t.nozzle_number - 1)*t.nozzle_spacing + t.nozzle_footprint # m - active arc, first exit edge to last (Stenning sector loss)
+        if t.nozzle_arc > 2*np.pi*t.r_pitchline:
+            raise ValueError(f"{t.nozzle_number} turbine nozzles need a {t.nozzle_arc*1000:.0f} mm arc, more than the {2*np.pi*t.r_pitchline*1000:.0f} mm circumference")
+
+        # Active fraction of stator-exit area (SP-290 eq. 8-23), overlap counted once (Aghaei & Tousi 2015 eqs. 1-7)
+        area_projected = np.pi/4*t.d_exit_nozzle*t.nozzle_footprint # m2 - one exit ellipse on the plate face
+        R, c = t.d_exit_nozzle/2, min(t.nozzle_spacing*t.d_exit_nozzle/t.nozzle_footprint, t.d_exit_nozzle) # m - ellipses scaled to circles along the arc
+        area_lens = (2*R**2*np.arccos(c/(2*R)) - c/2*np.sqrt(4*R**2 - c**2))*t.nozzle_footprint/t.d_exit_nozzle # m2 - overlap of neighbouring exits
+        t.admission_fraction = (t.nozzle_number*area_projected - (t.nozzle_number - 1)*area_lens)/(2*np.pi*t.r_pitchline*t.d_exit_nozzle) # unitless - epsilon
 
         if np.pi/2-t.blade_angle < 30*np.pi/180:
             raise ValueError(f"Rotor blade angle of {t.blade_angle*180/np.pi} deg is too aggressive (Zweifel has no correlation)\n")
@@ -86,7 +101,7 @@ def turbines(t: turbine):
         
         t.blade_angle_in = t.blade_angle # rad - measured from the vertical
         t.blade_angle_out = t.blade_angle # rad - measured from the vertical
-        expansion_loss_coeff = expansion_loss_interp(np.array([(t.blade_angle_in+t.blade_angle_out)*180.0/np.pi, t.blade_width/0.0254])) # unitless
+        expansion_loss_coeff = float(expansion_loss_interp(np.array([(t.blade_angle_in+t.blade_angle_out)*180.0/np.pi, t.blade_width/0.0254]))[0]) # unitless
         kinetic_loss_coeff = 2*expansion_loss_coeff**2 - 1 # unitless, equation 3
 
         incidence_loss_coeff = CubicSpline(incidence_loss[:,0], incidence_loss[:,1])(t.incidence_angle*180/np.pi) # unitless - NASA Turbines 1976 fig. 17
@@ -99,10 +114,9 @@ def turbines(t: turbine):
         specific_work = isentropic_enthalpy*expansion_loss_coeff + kinetic_enthalpy*kinetic_loss_coeff*incidence_loss_coeff*t.mach_loss_coeff # J/kg - equation 5b
 
         turbine_efficiency_full = specific_work / (isentropic_enthalpy + kinetic_enthalpy) # unitless
-        nozzle_arc = 2*np.pi*t.admission_fraction*t.r_pitchline # m
         t.w_out = t.w_in # this is a very bold assumption that NEEDS UPDATING
         wheel_ratio = t.w_out[0] / t.w_in[0] # unitless - ratio between outlet/inlet velocity of blades
-        turbine_efficiency_partial = (1+wheel_ratio*(1-t.blade_pitch/(3*nozzle_arc)))/(1+wheel_ratio) * turbine_efficiency_full - 1.539E-9*isentropic_v_ratio*t.dens_spouting*t.shaft_speed*(1-t.admission_fraction)/t.admission_fraction # unitless - equation 14
+        turbine_efficiency_partial = (1+wheel_ratio*(1-t.blade_pitch/(3*t.nozzle_arc)))/(1+wheel_ratio) * turbine_efficiency_full - 1.539E-9*isentropic_v_ratio*t.dens_spouting*t.shaft_speed*(1-t.admission_fraction)/t.admission_fraction # unitless - equation 14
 
         t.power_efficiency = turbine_efficiency_partial*clearance_loss_coeff
 
@@ -116,5 +130,21 @@ def turbines(t: turbine):
     gg.mdot_ox = gg.mdot*(gg.mixture_ratio/(1+gg.mixture_ratio))         # kg/s - Oxidizer Mass Flow Rate
     engine.mdot_fuel = tca.mdot_fuel+gg.mdot_fuel   # kg/s
     engine.mdot_ox = tca.mdot_ox+gg.mdot_ox         # kg/s
+
+def nozzle_footprint(t: turbine) -> float:
+    """Tangential length of one tilted conical nozzle's cut through the plate face (cascade plane).
+    Exit circle sits on the axis at the plate face; the two walls lean at tilt -/+ half-angle, so the cut is lopsided."""
+    r_throat, r_exit = t.d_throat_nozzle/2, t.d_exit_nozzle/2 # m
+    length_diverging = (r_exit - r_throat)/np.tan(t.diverge_angle_gg) # m
+    along = np.array([np.sin(t.angle_nozzle), -np.cos(t.angle_nozzle)]) # unitless - down the jet, plate face at y = 0
+    across = np.array([along[1], -along[0]]) # unitless
+    throat = -length_diverging*along # m
+    x = []
+    for side in (1.0, -1.0):
+        wall_start = throat + side*r_throat*across
+        tilt = -side*t.diverge_angle_gg # rad - wall opens away from the axis
+        wall = np.array([along[0]*np.cos(tilt) - along[1]*np.sin(tilt), along[0]*np.sin(tilt) + along[1]*np.cos(tilt)])
+        x.append(wall_start[0] - wall_start[1]/wall[1]*wall[0]) # m - where this wall meets y = 0
+    return abs(x[0] - x[1])
 
 

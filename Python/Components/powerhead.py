@@ -122,6 +122,7 @@ def powerhead():
 
     powerhead.ox_pump = ox_pump
     powerhead.fuel_pump = fuel_pump
+    powerhead.link = powerhead_link
     if engine.common_shaft == True:
         powerhead.turbine = common_turbine
     else:

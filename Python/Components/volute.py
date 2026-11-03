@@ -102,6 +102,7 @@ def volute(p) -> None:
     if vol.discharge_area_ratio < 1:
         raise ValueError(f"{p.fluid} mainline area is {vol.discharge_area_ratio:.2f}x the volute throat - nozzle would contract")
     vol.discharge_length = vol.d_throat/2*(np.sqrt(vol.discharge_area_ratio) - 1)/np.tan(vol.discharge_cone_angle/2) # m - conical nozzle at a fixed total angle
+    vol.nozzle_contour = discharge_nozzle_contour(p, vol, phi) # [m,m,m] - for plotting
     vol.discharge_cp = discharge_cp(vol.discharge_length*2/vol.d_throat, vol.discharge_area_ratio) # pressure recovery coefficient for discharge nozzle - Gulich Fig. 1.19
     vol.nozzle_loss = 0.5 * vol.c_throat**2 / (p.shaft_speed*imp.r_outlet)**2 * (1.0 - vol.discharge_cp - 1.0 / (p.A_mainline/vol.A_throat)**2) # diffuser nozzle loss - Gulich 3.8.22
 
@@ -119,6 +120,18 @@ def volute(p) -> None:
  
     # "...considerable freedom to configure the cross section without risking major losses ... flat cross sections result in less intense secondary flow than circular cross
     # sections, thereby generating fewer losses ... a ratio of width B to height H in the range of B/H = 2 to 3 may be considered the optimum." - Gulich pg 492
+
+def discharge_nozzle_contour(p, vol, phi):
+    """Conical nozzle surface leaving the throat tangentially at the end of the wrap. Shape (n_s, n_phi, 3)."""
+    theta_end = p.clocking * vol.wrap_angle # rad
+    radial = np.array([np.cos(theta_end), np.sin(theta_end), 0.0]) # unitless - in-plane radial direction at the throat
+    axis = p.clocking * np.array([-np.sin(theta_end), np.cos(theta_end), 0.0]) # unitless - flow direction, tangent to the wrap
+    center_throat = vol.r_meanline[-1] * radial + np.array([0.0, 0.0, vol.z_meanline]) # m
+
+    s = np.linspace(0.0, vol.discharge_length, 16) # m - distance along the nozzle axis
+    radius = vol.d_throat/2 + s*np.tan(vol.discharge_cone_angle/2) # m
+    return (center_throat[None, None, :] + s[:, None, None]*axis
+            + radius[:, None, None]*(np.cos(phi)[None, :, None]*radial + np.sin(phi)[None, :, None]*np.array([0.0, 0.0, 1.0]))) # [m,m,m]
 
 def discharge_cp(L_R1: float, A_R: float) -> float:
     """

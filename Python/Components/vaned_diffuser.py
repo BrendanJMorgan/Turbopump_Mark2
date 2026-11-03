@@ -33,7 +33,7 @@ def vaned_diffuser(p: pump) -> None:
     dif.blade_angle_inlet = dif.flow_angle_inlet + dif.incidence # rad - angle between leading edge and tangential azimuth
 
     ### Vane number
-    allowed_vane_counts = [0,0,0,0,0,0,0,5,5,5,6,7,7,7,7] # unitless - Gulich table D7.4 - the index is the impeller blade count
+    allowed_vane_counts = [0,0,0,0,0,8,10,12] # unitless - Gulich table D7.4 - the index is the impeller blade count
     dif.vane_count = allowed_vane_counts[imp.blade.count] if imp.blade.count < len(allowed_vane_counts) else 0 # unitless
     if not dif.vane_count > 0:
         raise ValueError(f"Impeller blade count {imp.blade.count} is not currently supported for a vaned diffuser")

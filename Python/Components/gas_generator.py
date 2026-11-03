@@ -21,9 +21,10 @@ def gas_generator():
     if gg.Tt > 1100:
         raise ValueError(f"Warning: Chamber temperature of {gg.Tt} K may be too high for typical materials\n")
     gg.c_star_ideal = float(py_cea.rockt.cstr) / 3.28084 # m/s (CEA reports c* in ft/s) - Characteristic Velocity from infinite area combustor
-    gg.Ae_At = py_cea.rockt.aeat[3]
-    gg.gamma_avg = (py_cea.prtout.gammas[2] + py_cea.prtout.gammas[3]) / 2 # Ratio of Specific Heats, estimate
-    gg.R_gas = 8314.5 / (py_cea.prtout.wm[2])  # J/kg-K (wm is g/mol, so R_u in J/kmol-K) - Specific Gas Constant (throat)
+    # Stations are 0-2: chamber, throat, exit (no finite-area combustor here, unlike the TCA run)
+    gg.Ae_At = py_cea.rockt.aeat[2]
+    gg.gamma_avg = (py_cea.prtout.gammas[1] + py_cea.prtout.gammas[2]) / 2 # Ratio of Specific Heats, estimate
+    gg.R_gas = 8314.5 / (py_cea.prtout.wm[1])  # J/kg-K (wm is g/mol, so R_u in J/kmol-K) - Specific Gas Constant (throat)
     
     # Performance Parameters ------------------------------------------------
     gg.c_star   = gg.c_star_ideal * gg.c_star_efficiency    # m/s - Characteristic Velocity

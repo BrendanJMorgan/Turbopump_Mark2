@@ -117,7 +117,7 @@ class turbine:
     d_throat_nozzle    = baseunit(c['d_throat_nozzle'])  # m - diameter of each nozzle off the manifold
     diverge_angle_gg   = baseunit(c['diverge_angle_gg']) # rad - half-cone divergence angle of nozzle plate
     blade_width        = baseunit(c['blade_width'])      # m
-    admission_fraction = baseunit(c['admission_fraction'])  # unitless - fraction of nozzle-plate circle with nozzles
+    nozzle_spacing_ratio = baseunit(c['nozzle_spacing_ratio'])  # unitless - nozzle pitch / exit footprint; 1 = line on line, <1 overlapping
     blade_length       = baseunit(c['blade_length'])     # m
     tip_clearance      = baseunit(c['tip_clearance'])      # m
     radius_leading     = baseunit(c['radius_leading'])     # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
