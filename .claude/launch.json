@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "plots",
+      "runtimeExecutable": "C:/Users/brend/Desktop/Turbopump_Mark2/Python/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "C:/Users/brend/Desktop/Turbopump_Mark2/Python/Components"],
+      "port": 8765
+    }
+  ]
+}

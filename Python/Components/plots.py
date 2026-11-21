@@ -7,6 +7,7 @@ from plotly.subplots import make_subplots
 
 from engine_state import engine, tca, gg
 from powerhead import powerhead
+from cad_export import export_volute_step
 
 PUMPS = (("ox", "Ox", "blue"), ("fuel", "Fuel", "red"))  # (powerhead attribute prefix, label, color)
 ROW_HEIGHT = 400  # px per subplot row in the dashboard
@@ -33,6 +34,7 @@ def plots():
         pump = pumps[key]
         print(f"{label} pump: shaft power {pump.shaft_power/1e3:0.1f} kW, shaft speed {pump.shaft_speed*30/np.pi:0.0f} rpm")
 
+    export_volute_step(pumps)
     show_dashboard(tabs, title="Mark 2 Engine")
 
 
@@ -225,10 +227,10 @@ def summary_html(pumps, turbine, link):
         ["Shaft power (kW)", f"{turbine.shaft_power/1e3:0.1f}"],
         ["Efficiency", f"{turbine.power_efficiency:0.3f}"],
         ["Pitchline radius (mm)", f"{turbine.r_pitchline*1000:0.1f}"],
-        ["Velocity ratio u/c0", f"{turbine.v_pitchline/turbine.v_spouting_norm:0.3f}"],
-        ["Rotor blades", turbine.blade_count],
-        ["Nozzles", f"{turbine.nozzle_number}, exit {turbine.d_exit_nozzle*1000:0.1f} mm"],
-        ["Admission arc", f"{np.degrees(turbine.nozzle_arc/turbine.r_pitchline):0.0f} deg, area fraction {turbine.admission_fraction:0.3f}"],
+        ["Velocity ratio u/c0", f"{turbine.v_pitchline/turbine.stator.v_spouting_norm:0.3f}"],
+        ["Rotor blades", turbine.rotor.blade_count],
+        ["Nozzles", f"{turbine.stator.nozzle_number}, exit {turbine.stator.d_exit_nozzle*1000:0.1f} mm"],
+        ["Admission arc", f"{np.degrees(turbine.stator.nozzle_arc/turbine.r_pitchline):0.0f} deg, area fraction {turbine.stator.admission_fraction:0.3f}"],
         ["GG flow (kg/s)", f"{gg.mdot:0.3f} ({gg.fraction*100:0.1f}% of engine)"],
         ["GG chamber", f"{gg.pc/1e5:0.1f} bar, {gg.Tt:0.0f} K, MR {gg.mixture_ratio:g}"],
     ])
@@ -362,8 +364,8 @@ def overhead_figure(pumps, turbine):
     # Turbine rotor: pitchline (dashed), blade tip and base
     theta = np.linspace(0.0, 2.0 * np.pi, 1000)
     for r, name, dash in ((turbine.r_pitchline, "Turbine Pitchline", "dash"),
-                          (turbine.r_tip, "Turbine Blade Tip/Base", "solid"),
-                          (turbine.r_base, "Turbine Blade Tip/Base", "solid")):
+                          (turbine.rotor.r_tip, "Turbine Blade Tip/Base", "solid"),
+                          (turbine.rotor.r_base, "Turbine Blade Tip/Base", "solid")):
         line(fig, r * 1000 * np.cos(theta), r * 1000 * np.sin(theta), "orange", name=name, dash=dash, width=1)
 
     n_powerhead = len(fig.data)
@@ -388,37 +390,37 @@ def overhead_figure(pumps, turbine):
 def turbine_overhead_figure(turbine):
     fig = go.Figure()
     theta = np.linspace(0.0, 2.0 * np.pi, 400)
-    r_pitch, r_base, r_tip = turbine.r_pitchline, turbine.r_base, turbine.r_tip
+    r_pitch, r_base, r_tip = turbine.r_pitchline, turbine.rotor.r_base, turbine.rotor.r_tip
 
     # Blade row as a shaded annulus with one radial tick per blade
     shaded(fig, np.concatenate([r_tip * np.cos(theta), r_base * np.cos(theta[::-1])]) * 1000,
            np.concatenate([r_tip * np.sin(theta), r_base * np.sin(theta[::-1])]) * 1000, "orange", name="Blade Row",
            opacity=0.2)
-    a = 2 * np.pi * np.arange(turbine.blade_count) / turbine.blade_count
+    a = 2 * np.pi * np.arange(turbine.rotor.blade_count) / turbine.rotor.blade_count
     x = np.column_stack([r_base * np.cos(a), r_tip * np.cos(a), np.full_like(a, np.nan)]).ravel()  # NaN breaks the line
     y = np.column_stack([r_base * np.sin(a), r_tip * np.sin(a), np.full_like(a, np.nan)]).ravel()
-    fig.add_trace(go.Scatter(x=x * 1000, y=y * 1000, mode="lines", name=f"Rotor Blades ({turbine.blade_count})",
+    fig.add_trace(go.Scatter(x=x * 1000, y=y * 1000, mode="lines", name=f"Rotor Blades ({turbine.rotor.blade_count})",
                              line=dict(color="darkorange", width=1)))
     line(fig, r_pitch * np.cos(theta) * 1000, r_pitch * np.sin(theta) * 1000, "orange", name="Pitchline", dash="dash", width=1)
 
     # Active arc, starting at 0 deg: the jet sheet, then each nozzle exit as an ellipse on the pitchline.
-    # Drawn symmetric; the true cone cut is lopsided (see turbines.nozzle_footprint), but the arc length matches.
-    arc = turbine.nozzle_arc / r_pitch  # rad
+    # Drawn symmetric; the true cone cut is lopsided (see stators.nozzle_footprint), but the arc length matches.
+    arc = turbine.stator.nozzle_arc / r_pitch  # rad
     a = np.linspace(0.0, arc, 100)
     shaded(fig, np.concatenate([r_tip * np.cos(a), r_base * np.cos(a[::-1])]) * 1000,
            np.concatenate([r_tip * np.sin(a), r_base * np.sin(a[::-1])]) * 1000, "red", name="Active Arc", opacity=0.15)
     t = np.linspace(0.0, 2.0 * np.pi, 40)
-    for k in range(turbine.nozzle_number):
-        center = (turbine.nozzle_footprint / 2 + k * turbine.nozzle_spacing) / r_pitch  # rad
-        along, radial = turbine.nozzle_footprint / 2 * np.cos(t), turbine.d_exit_nozzle / 2 * np.sin(t)  # m - local ellipse
+    for k in range(turbine.stator.nozzle_number):
+        center = (turbine.stator.nozzle_footprint / 2 + k * turbine.stator.nozzle_spacing) / r_pitch  # rad
+        along, radial = turbine.stator.nozzle_footprint / 2 * np.cos(t), turbine.stator.d_exit_nozzle / 2 * np.sin(t)  # m - local ellipse
         x = (r_pitch + radial) * np.cos(center) - along * np.sin(center)
         y = (r_pitch + radial) * np.sin(center) + along * np.cos(center)
-        line(fig, x * 1000, y * 1000, "gray", name=f"Nozzle Exits ({turbine.nozzle_number})", width=1)
+        line(fig, x * 1000, y * 1000, "gray", name=f"Nozzle Exits ({turbine.stator.nozzle_number})", width=1)
 
-    info_box(fig, [f"Nozzles = {turbine.nozzle_number}, exit D {turbine.d_exit_nozzle*1000:0.1f} mm",
-                   f"Footprint {turbine.nozzle_footprint*1000:0.1f} mm, spacing {turbine.nozzle_spacing*1000:0.1f} mm",
-                   f"Arc = {np.degrees(arc):0.0f} deg ({turbine.nozzle_arc*1000:0.0f} mm)",
-                   f"Area fraction = {turbine.admission_fraction:0.3f}"])
+    info_box(fig, [f"Nozzles = {turbine.stator.nozzle_number}, exit D {turbine.stator.d_exit_nozzle*1000:0.1f} mm",
+                   f"Footprint {turbine.stator.nozzle_footprint*1000:0.1f} mm, spacing {turbine.stator.nozzle_spacing*1000:0.1f} mm",
+                   f"Arc = {np.degrees(arc):0.0f} deg ({turbine.stator.nozzle_arc*1000:0.0f} mm)",
+                   f"Area fraction = {turbine.stator.admission_fraction:0.3f}"])
     equal_aspect(fig)
     fig.update_layout(title="Turbine - Top View with Nozzle Arc (mm)")
     return fig, 1
@@ -430,10 +432,10 @@ def turbine_overhead_figure(turbine):
 
 def turbine_blade_figure(turbine):
     fig = go.Figure()
-    chord, pitch, r_le = turbine.blade_chord, turbine.blade_pitch, turbine.radius_leading
+    chord, pitch, r_le = turbine.rotor.blade_chord, turbine.rotor.blade_pitch, turbine.rotor.radius_leading
 
     # Trailing (pressure-side) arc through the blade tips
-    sagitta = chord / 2.0 * (1.0 - np.cos(turbine.blade_angle)) / np.sin(turbine.blade_angle)
+    sagitta = chord / 2.0 * (1.0 - np.cos(turbine.rotor.blade_angle)) / np.sin(turbine.rotor.blade_angle)
     tip = np.array([-sagitta, chord / 2.0])
     blade_radius = sagitta / 2.0 + chord**2 / (8.0 * sagitta)
     center_arc = np.array([-blade_radius, 0.0])
@@ -443,7 +445,7 @@ def turbine_blade_figure(turbine):
     y_trailing = center_arc[1] + blade_radius * np.sin(arc_theta)
 
     # Leading-edge fillet, joined to the tips by tangent lines
-    apex_leading = np.array([pitch - turbine.blade_opening, 0.0])
+    apex_leading = np.array([pitch - turbine.rotor.blade_opening, 0.0])
     center_leading = apex_leading + np.array([-r_le, 0.0])
     center_to_tip = tip - center_leading
     tangent_angle = np.arctan2(center_to_tip[1], center_to_tip[0]) - np.arccos(r_le / np.linalg.norm(center_to_tip))
@@ -462,14 +464,14 @@ def turbine_blade_figure(turbine):
 
     # Nozzle plate above the blades: section through each nozzle axis in the cascade plane (x tangential, y axial).
     # Jets point down into the blades and along +x, onto the concave faces; tilt is angle_nozzle from axial.
-    r_throat = turbine.d_throat_nozzle / 2
+    r_throat = turbine.stator.d_throat_nozzle / 2
     r_exit = r_throat * np.sqrt(gg.Ae_At)                                  # same expansion ratio as the GG nozzle
-    length_diverging = (r_exit - r_throat) / np.tan(turbine.diverge_angle_gg)
+    length_diverging = (r_exit - r_throat) / np.tan(turbine.stator.diverge_angle)
     length_converging = 2 * r_throat                                       # DRAWING ONLY - short inlet stub, not modeled
-    along = np.array([np.sin(turbine.angle_nozzle), -np.cos(turbine.angle_nozzle)])   # unit vector along the jet
+    along = np.array([np.sin(turbine.stator.angle_nozzle), -np.cos(turbine.stator.angle_nozzle)])   # unit vector along the jet
     across = np.array([along[1], -along[0]])                                           # unit normal to the jet
 
-    nozzle_spacing = turbine.nozzle_spacing  # m - along the pitchline
+    nozzle_spacing = turbine.stator.nozzle_spacing  # m - along the pitchline
     plate_face_y = chord / 2 + NOZZLE_AXIAL_GAP  # m - bottom face of the nozzle plate, where the bores break out
 
     def to_plate_face(point, direction):
@@ -482,7 +484,7 @@ def turbine_blade_figure(turbine):
         inlet = throat - length_converging * along
         for side in (1.0, -1.0):
             throat_wall = throat + side * r_throat * across
-            cone = rotate(along[0], along[1], -side * turbine.diverge_angle_gg)  # wall direction, opening away from the axis
+            cone = rotate(along[0], along[1], -side * turbine.stator.diverge_angle)  # wall direction, opening away from the axis
             wall = np.array([inlet + side * 2 * r_throat * across, throat_wall, to_plate_face(throat_wall, np.array(cone))])
             line(fig, wall[:, 0] * 1000, wall[:, 1] * 1000, "gray", name="Nozzles")
         axis_line = np.array([inlet, axis_exit])
@@ -490,10 +492,10 @@ def turbine_blade_figure(turbine):
     fig.add_hline(y=plate_face_y * 1000, line=dict(color="gray", width=1, dash="dot"), name="Nozzle Plate Face",
                   showlegend=True)
 
-    info_box(fig, [f"Blade Count = {turbine.blade_count:g}",
-                             f"Nozzles = {turbine.nozzle_number}, spacing {nozzle_spacing*1000:0.1f} mm",
-                             f"Admission: arc {turbine.nozzle_arc*1000:0.0f} mm, area fraction {turbine.admission_fraction:0.3f}",
-                             f"Nozzle tilt = {np.degrees(turbine.angle_nozzle):0.1f} deg from axial",
+    info_box(fig, [f"Blade Count = {turbine.rotor.blade_count:g}",
+                             f"Nozzles = {turbine.stator.nozzle_number}, spacing {nozzle_spacing*1000:0.1f} mm",
+                             f"Admission: arc {turbine.stator.nozzle_arc*1000:0.0f} mm, area fraction {turbine.stator.admission_fraction:0.3f}",
+                             f"Nozzle tilt = {np.degrees(turbine.stator.angle_nozzle):0.1f} deg from axial",
                              f"Axial gap = {NOZZLE_AXIAL_GAP*1000:0.1f} mm (assumed)"])
     equal_aspect(fig)
     fig.update_xaxes(title_text="Tangential (mm), blades move +x")

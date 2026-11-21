@@ -5,6 +5,14 @@
   regen/film cooling) -> `powerhead()` (pumps, inducers, impellers, volute, GG, turbine, turbo-electric link).
   Inputs in `config.yaml`, loaded into module-level classes in `engine_state.py` (state is stored by mutating
   those classes, e.g. `tca.mdot = ...`).
+- Turbine mirrors the pump layout: `turbines.py` holds the pitchline, velocity triangles, efficiency loop and flow
+  totals; `stators.py` (`stator_flow` once, `stator_geometry` each loop pass, since the plate depends on `gg.mdot`)
+  writes to `t.stator`; `rotors.py` (`rotor`, blade geometry + loss coefficients) writes to `t.rotor`. Config inputs
+  sit under `turbine: stator:` / `rotor:` in `config.yaml`.
+- `cad_export.py` (called from `plots()`) writes `Solidworks/Volute/<pump>_volute.step`: the volute fluid core as
+  one solid (wrap lofted through `vol.contour` sections from 10 deg, fused with a ruled loft of
+  `vol.nozzle_contour`). Shape-agnostic - it only reads the surface grids. Uses OpenCascade via `cadquery-ocp`.
+  A single loft through wrap + cone overshoots ~4 % at the junction, hence two lofts and a fuse.
 - `Python/Network/` - FullFlow cycle-balance model. Topology lives in `cycle.yaml`; `model.py` assembles it,
   `physics.py` holds the hooks. See `Python/Network/NOTES.md`. `run_cycle.py` and `primary_flow.py` are stale.
 - `Python/.venv` - Python 3.11 venv with rocketcea, rocketprops, CoolProp, fullflow etc. Run with

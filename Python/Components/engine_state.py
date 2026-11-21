@@ -114,14 +114,28 @@ class turbine:
     r_pitchline_max    = baseunit(c['r_pitchline_max'])  # m - manufacturing limit
     velocity_ratio     = baseunit(c['velocity_ratio'])   # unitless - target pitchline speed / spouting velocity
     gear_ratio         = baseunit(c['gear_ratio'])         # unitless - higher = faster/smaller turbine; 1 = common shaft
-    d_throat_nozzle    = baseunit(c['d_throat_nozzle'])  # m - diameter of each nozzle off the manifold
-    diverge_angle_gg   = baseunit(c['diverge_angle_gg']) # rad - half-cone divergence angle of nozzle plate
-    blade_width        = baseunit(c['blade_width'])      # m
-    nozzle_spacing_ratio = baseunit(c['nozzle_spacing_ratio'])  # unitless - nozzle pitch / exit footprint; 1 = line on line, <1 overlapping
-    blade_length       = baseunit(c['blade_length'])     # m
-    tip_clearance      = baseunit(c['tip_clearance'])      # m
-    radius_leading     = baseunit(c['radius_leading'])     # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
     del c
+
+    def __init__(self):
+        self.stator = turbine.stator()
+        self.rotor = turbine.rotor()
+
+    class stator:  # nozzle plate
+        def __init__(self):
+            c = config['turbine']['stator']
+            self.d_throat_nozzle      = baseunit(c['d_throat_nozzle'])       # m - diameter of each nozzle off the manifold
+            self.diverge_angle        = baseunit(c['diverge_angle'])         # rad - half-cone divergence angle of each nozzle
+            self.nozzle_spacing_ratio = baseunit(c['nozzle_spacing_ratio'])  # unitless - nozzle pitch / exit footprint; 1 = line on line, <1 overlapping
+            del c
+
+    class rotor:  # blade row
+        def __init__(self):
+            c = config['turbine']['rotor']
+            self.blade_width    = baseunit(c['blade_width'])     # m
+            self.blade_length   = baseunit(c['blade_length'])    # m
+            self.tip_clearance  = baseunit(c['tip_clearance'])   # m
+            self.radius_leading = baseunit(c['radius_leading'])  # m - blade leading edge fillet radius. NEEDS MORE RESEARCH
+            del c
 
 class pump:
     def __init__(self, fluid: str):

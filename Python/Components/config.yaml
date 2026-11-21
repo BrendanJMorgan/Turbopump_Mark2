@@ -29,7 +29,7 @@ tca:
   l_star:             {value: 1.5, unit: m}                # characteristic chamber length
   rc_throat:          {value: 0.025, unit: m}           # radius of curvature at the throat
   d2_chamber:         {value: 6, unit: in}
-  wall_thickness:     {value: 0.006, unit: m}      # (SLANT VS VERTICAL THICKNESS)
+  wall_thickness:     {value: 0.003, unit: m}      # (SLANT VS VERTICAL THICKNESS)
   pc:                 {value: 50, unit: bar}                   # chamber (stagnation) pressure
   mixture_ratio:      {value: 2.0, unit: dimensionless}       # oxidizer/fuel ratio (by mass)
   c_star_efficiency:  {value: 0.85, unit: dimensionless}  # experimental
@@ -67,13 +67,15 @@ turbine:
   r_pitchline_max:    {value: 5.5, unit: in}           # manufacturing limit
   velocity_ratio:     {value: 0.35, unit: dimensionless} # u/c0 target; 0.30-0.40 is best for a single-row impulse stage
   gear_ratio:         {value: 1, unit: dimensionless} # higher = faster/smaller turbine; 1 = common shaft
-  d_throat_nozzle:    {value: 0.127, unit: in}
-  diverge_angle_gg:   {value: 15, unit: deg}
-  blade_width:        {value: 0.5, unit: in}
-  nozzle_spacing_ratio: {value: 1.0, unit: dimensionless}  # nozzle pitch / exit footprint; 1 = line on line, <1 overlapping exits
-  blade_length:       {value: 0.25, unit: in}
-  tip_clearance:      {value: 0.0005, unit: m}
-  radius_leading:     {value: 0.002, unit: m}         # blade leading-edge fillet radius (NEEDS MORE RESEARCH)
+  stator:                                              # drilled nozzle plate
+    d_throat_nozzle:      {value: 0.127, unit: in}
+    diverge_angle:        {value: 15, unit: deg}       # half-cone divergence angle of each nozzle
+    nozzle_spacing_ratio: {value: 1.0, unit: dimensionless}  # nozzle pitch / exit footprint; 1 = line on line, <1 overlapping exits
+  rotor:                                               # impulse blade row
+    blade_width:          {value: 0.5, unit: in}
+    blade_length:         {value: 0.25, unit: in}
+    tip_clearance:        {value: 0.0005, unit: m}
+    radius_leading:       {value: 0.002, unit: m}      # blade leading-edge fillet radius (NEEDS MORE RESEARCH)
 
 # Per-fluid pump configuration. Each fluid composes an inducer, impeller(s),
 # volute, and tank. Requesting a fluid not listed here raises a KeyError.
